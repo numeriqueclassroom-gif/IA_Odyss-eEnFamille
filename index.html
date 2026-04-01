@@ -272,7 +272,7 @@ body{background:var(--void);color:var(--silver);font-family:var(--font-body);fon
 <script>
 // ══ STATE ══
 let crystals=0, goldCrystals=0;
-const epochs=['PROLOGUE','ÉPOQUE I · 1950','ÉPOQUE II · 1970','ÉPOQUE III · 1997','ÉPOQUE IV · 2016','ÉPOQUE V · 2024','ÉPOQUE VI · 20??'];
+const epochs=['PROLOGUE','ÉPOQUE I · 1950','ÉPOQUE II · 1970','ÉPOQUE III · 1997','ÉPOQUE IV · 2016','ÉPOQUE V · 2024','ÉPOQUE VI · 2026'];
 
 function addCrystals(n){crystals+=n;document.getElementById('cc').textContent=crystals;}
 function addGold(n){goldCrystals+=n;document.getElementById('gc').textContent=goldCrystals;}
@@ -1346,7 +1346,7 @@ const nodes={
 
 // ── 6. LE DONJON + LA TOUR ──
 6:(el)=>{
-  aH(el,badge('Époque VI · 20??'));
+  aH(el,badge('Époque VI · 2026'));
   aH(el,scTitle('Le Donjon du Paresseux & La Tour du Sage'));
   aH(el,`<img src="image8.jpg" alt="Le Donjon du Paresseux et la Tour du Sage — le futur" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(245,166,35,.12);display:block;"/>`);
 
@@ -1371,7 +1371,7 @@ const nodes={
   );
 
   const door=buildSealedDoor(el, doorSvg, `Résolvez l'épreuve pour choisir votre chemin`);
-  const journal=buildJournal(el,'futur','Ama Owusu, doctorante en IA · Université de Lagos','20??, journal de recherche',
+  const journal=buildJournal(el,'futur','Ama Owusu, doctorante en IA · Université de Lagos','2026, journal de recherche',
     `Mes étudiants utilisent l'IA pour tout. Certains n'écrivent plus une phrase sans elle. Je leur dis : l'IA est un miroir, pas une fenêtre. Elle te renverra ce que tu lui donnes, amplifié. Si tu penses flou, elle écrira flou avec assurance. Si vous pensez précis, elle te donnera des outils que tu n'aurais pas trouvés seul. La question n'est pas "utiliser ou ne pas utiliser". C'est : est-ce que tu diriges, ou est-ce que tu subis ?`);
 
   aH(el,scTxt(`Le chronomètre s'arrête dans un lieu indéfini. Deux chemins s'éloignent dans la brume devant vous.`));

@@ -257,6 +257,7 @@ body{background:var(--void);color:var(--silver);font-family:var(--font-body);fon
     <div class="hud-scores">
       <span id="crystals-display">💎 <span id="cc">0</span></span>
       <span id="gold-display">✦ <span id="gc">0</span> Or</span>
+      <button id="sound-btn" onclick="toggleSound()" style="background:transparent;border:1px solid rgba(0,212,180,.3);border-radius:2px;color:var(--teal);font-family:var(--font-mono);font-size:.7rem;padding:.3rem .6rem;cursor:pointer;transition:all .2s;letter-spacing:.05em;" title="Couper / relancer la musique">🔊</button>
     </div>
   </div>
   <div id="timeline">
@@ -278,6 +279,134 @@ body{background:var(--void);color:var(--silver);font-family:var(--font-body);fon
 <script>
 // ══ STATE ══
 let crystals=0, goldCrystals=0;
+
+// ══ SYSTÈME AUDIO ══
+const TRACKS={
+  intro:   ['echodanslamachine.mp3','echodanslamachine1.mp3'],
+  middle:  ['sortiedelaboitenoire.mp3'],
+  modern:  ['sortiedelasimulation.mp3','sortiedelasimulation1.mp3'],
+  final:   ['enigmedeslice1.mp3'],
+  silence: [],
+};
+const NODE_TRACK={
+  0:'intro', 1:'intro', 2:'intro',
+  3:'middle', 4:'middle',
+  10:'modern', 5:'modern', 7:'modern',
+  6:'final',
+  8:'silence', 9:'silence',
+};
+
+let audioCtx=null, currentSource=null, gainNode=null;
+let soundEnabled=true, audioStarted=false;
+let currentTrackKey=null, currentTrackIdx={};
+
+function getAudioCtx(){
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+
+const audioBuffers={};
+function loadTrack(file, cb){
+  if(audioBuffers[file]){cb(audioBuffers[file]);return;}
+  fetch(file).then(r=>r.arrayBuffer()).then(buf=>{
+    getAudioCtx().decodeAudioData(buf,decoded=>{audioBuffers[file]=decoded;cb(decoded);});
+  }).catch(()=>{});
+}
+
+function playBuffer(buffer, loop, onEnded){
+  if(!soundEnabled||!buffer) return null;
+  const ctx=getAudioCtx();
+  if(!gainNode){gainNode=ctx.createGain();gainNode.connect(ctx.destination);}
+  const src=ctx.createBufferSource();
+  src.buffer=buffer;
+  src.loop=loop;
+  src.connect(gainNode);
+  src.start(0);
+  if(onEnded) src.onended=onEnded;
+  return src;
+}
+
+function fadeOut(duration, cb){
+  if(!gainNode||!currentSource){if(cb)cb();return;}
+  const ctx=getAudioCtx();
+  const now=ctx.currentTime;
+  gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+  gainNode.gain.linearRampToValueAtTime(0, now+duration);
+  setTimeout(()=>{
+    if(currentSource){try{currentSource.stop();}catch(e){}}
+    currentSource=null;
+    gainNode.gain.setValueAtTime(1, ctx.currentTime);
+    if(cb)cb();
+  }, duration*1000+50);
+}
+
+function fadeIn(buffer, loop, onEnded){
+  if(!soundEnabled||!buffer) return;
+  const ctx=getAudioCtx();
+  if(!gainNode){gainNode=ctx.createGain();gainNode.connect(ctx.destination);}
+  gainNode.gain.setValueAtTime(0, ctx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.7, ctx.currentTime+1.5);
+  currentSource=playBuffer(buffer, loop, onEnded);
+}
+
+function playTrackForNode(nodeId){
+  const key=NODE_TRACK[nodeId]||'silence';
+  if(key==='silence'){
+    fadeOut(1.5);currentTrackKey=null;return;
+  }
+  if(key===currentTrackKey) return;
+  currentTrackKey=key;
+  const files=TRACKS[key];
+  if(!files||!files.length) return;
+  if(currentTrackIdx[key]===undefined) currentTrackIdx[key]=0;
+  const file=files[currentTrackIdx[key]%files.length];
+
+  function playNext(){
+    currentTrackIdx[key]=(currentTrackIdx[key]+1)%files.length;
+    const nextFile=files[currentTrackIdx[key]];
+    loadTrack(nextFile, buf=>{
+      if(currentTrackKey===key&&soundEnabled) fadeIn(buf, false, playNext);
+    });
+  }
+
+  loadTrack(file, buf=>{
+    if(!soundEnabled) return;
+    if(currentSource){
+      fadeOut(1.5,()=>{
+        if(currentTrackKey===key) fadeIn(buf, files.length===1, files.length>1?playNext:null);
+      });
+    } else {
+      fadeIn(buf, files.length===1, files.length>1?playNext:null);
+    }
+  });
+}
+
+function toggleSound(){
+  soundEnabled=!soundEnabled;
+  const btn=document.getElementById('sound-btn');
+  if(soundEnabled){
+    btn.textContent='🔊';
+    btn.style.borderColor='rgba(0,212,180,.3)';
+    btn.style.color='var(--teal)';
+    if(currentTrackKey) playTrackForNode(Object.keys(NODE_TRACK).find(k=>NODE_TRACK[k]===currentTrackKey));
+    else playTrackForNode(currentRenderedNode||0);
+  } else {
+    fadeOut(0.8);
+    btn.textContent='🔇';
+    btn.style.borderColor='rgba(106,127,160,.3)';
+    btn.style.color='var(--dim)';
+  }
+}
+
+// Démarre au premier clic utilisateur (contournement autoplay navigateurs)
+let currentRenderedNode=0;
+function startAudioOnInteraction(){
+  if(audioStarted) return;
+  audioStarted=true;
+  document.removeEventListener('click',startAudioOnInteraction);
+  if(soundEnabled) playTrackForNode(currentRenderedNode);
+}
+document.addEventListener('click', startAudioOnInteraction);
 const epochs=['PROLOGUE','ÉPOQUE I · 1950','ÉPOQUE II · 1970','ÉPOQUE III · 1997','ÉPOQUE IV · 2016','ÉPOQUE V · 2024','ÉPOQUE VI · 2026 et après','ÉPOQUE V · Forêt de l\'Énergie','RÉCAPITULATIF','BILAN FINAL','ÉPOQUE IV bis · 2022'];
 
 function addCrystals(n){crystals+=n;document.getElementById('cc').textContent=crystals;}
@@ -295,12 +424,14 @@ function updateTimeline(a){
   });
 }
 function render(id){
+  currentRenderedNode=id;
   updateTimeline(id);
   const s=document.getElementById('scene');
   s.innerHTML='';s.style.animation='none';s.offsetHeight;s.style.animation='';
   nodes[id](s);
   document.getElementById('epoch-display').textContent=epochs[id]||'—';
   window.scrollTo({top:0,behavior:'smooth'});
+  if(audioStarted&&soundEnabled) playTrackForNode(id);
 }
 
 // ══ HELPERS ══
@@ -1566,7 +1697,7 @@ const nodes={
 5:(el)=>{
   aH(el,badge('Époque V · 2024'));
   aH(el,scTitle('Le Marché des Prompts'));
-  aH(el,`<img src="image7.png" alt="Le Marché des Prompts · IA générative, 2024" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
+  aH(el,`<img src="image6.png" alt="Le Marché des Prompts · IA générative, 2024" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
 
   const narr5=document.createElement('div'); narr5.style.display='none';
   const ch5=document.createElement('div'); ch5.style.display='none';
@@ -1646,7 +1777,7 @@ const nodes={
 7:(el)=>{
   aH(el,badge('Époque V · 2024 · La Forêt de l\'Énergie'));
   aH(el,scTitle('La Forêt de l\'Énergie'));
-  aH(el,`<img src="image6.png" alt="La Forêt de l'Énergie · datacenters et impact environnemental" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
+  aH(el,`<img src="image7.png" alt="La Forêt de l'Énergie · datacenters et impact environnemental" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
 
   const narr7=document.createElement('div'); narr7.style.display='none';
   const ch7=document.createElement('div'); ch7.style.display='none';
@@ -1733,15 +1864,219 @@ const nodes={
       `Exactement. "Écrire, c'est penser." Quand on cherche ses mots, on structure sa pensée. L'IA peut aider à relire, améliorer, explorer ; pas à penser à votre place.`,
     ],
     crystalOnCorrect:1, journal:journal6,
-    onAnswered:()=>revealSection(end6),
+    onAnswered:()=>revealSection(cogZone6),
   });
   el.appendChild(ch6);
 
+  // ── EXERCICE COGNITIF · OPTION D ──
+  const cogZone6=document.createElement('div'); cogZone6.style.display='none';
+  aH(cogZone6, sep());
+
+  const cogIntro=document.createElement('div');
+  cogIntro.style.cssText='background:rgba(8,14,32,.85);border:1px solid rgba(255,107,138,.22);border-radius:5px;padding:1.2rem 1.4rem;margin:1rem 0 1.4rem;';
+  cogIntro.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--rose);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.6rem;">🧠 Le muscle cognitif · Ce que disent les chercheurs</div>
+    <p style="font-size:.95rem;color:var(--silver);line-height:1.75;">Le cerveau fonctionne comme un muscle : ce qu'on ne pratique plus, on le perd. Des chercheurs commencent à mesurer l'impact de la délégation cognitive à l'IA. Trois questions, trois études, trois formes visuelles différentes.</p>`;
+  cogZone6.appendChild(cogIntro);
+
+  let cogAnswered=0;
+  const cogNavZone=document.createElement('div'); cogNavZone.style.display='none';
+
+  // ── Q1 · JAUGE CÉRÉBRALE ──
+  const q1=document.createElement('div');
+  q1.style.cssText='background:rgba(8,14,32,.8);border:1px solid rgba(255,107,138,.18);border-radius:5px;padding:1.2rem 1.4rem;margin:.9rem 0;';
+  q1.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--rose);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.6rem;">Question 1 · À votre avis</div>
+    <p style="font-size:1rem;color:var(--silver);font-weight:600;margin-bottom:.9rem;line-height:1.5;">Après 6 mois d'utilisation intensive de l'IA pour rédiger, qu'arrive-t-il à la capacité d'écriture propre d'un utilisateur ?</p>
+    <div class="options" id="cog1-opts"></div>
+    <div id="cog1-reveal" style="display:none;margin-top:1rem;"></div>`;
+  cogZone6.appendChild(q1);
+
+  (()=>{
+    const opts=['Elle s\'améliore : lire de bons textes forme l\'écriture.','Elle reste stable : l\'IA est un outil comme un autre.','Elle se détériore : le manque de pratique atrophie la compétence.'];
+    const ow=q1.querySelector('#cog1-opts');
+    const rev=q1.querySelector('#cog1-reveal');
+    let done=false;
+    opts.forEach((opt,oi)=>{
+      const b=document.createElement('button'); b.className='option-btn'; b.textContent=opt;
+      b.onclick=()=>{
+        if(done)return; done=true;
+        const correct=oi===2;
+        ow.querySelectorAll('.option-btn').forEach((bb,j)=>bb.classList.add(j===oi?(correct?'correct':'wrong'):'disabled'));
+        if(correct) addCrystals(1);
+
+        rev.style.display='block';
+        rev.innerHTML=`<div style="font-family:var(--font-mono);font-size:.62rem;color:var(--rose);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.7rem;">📊 Microsoft · Carnegie Mellon, 2025</div>
+          <p style="font-size:.88rem;color:var(--silver);line-height:1.7;margin-bottom:1rem;">Sur 319 travailleurs, plus la confiance en l'IA est élevée, moins l'effort cognitif personnel est mobilisé. Résultat : une réduction significative de la pensée critique chez les utilisateurs à délégation intensive.</p>
+          <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--dim);margin-bottom:.4rem;">Capacité cognitive propre après délégation intensive</div>
+          <div style="background:rgba(255,107,138,.08);border:1px solid rgba(255,107,138,.2);border-radius:3px;padding:.6rem .8rem;">
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.7rem;margin-bottom:.4rem;">
+              <span style="color:var(--teal);">Groupe sans délégation IA</span>
+              <span style="color:var(--teal);">100%</span>
+            </div>
+            <div style="background:rgba(0,212,180,.15);border-radius:2px;height:14px;width:100%;margin-bottom:.6rem;overflow:hidden;"><div id="bar-ctrl" style="height:100%;width:0%;background:var(--teal);border-radius:2px;transition:width 1.2s ease;"></div></div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.7rem;margin-bottom:.4rem;">
+              <span style="color:var(--rose);">Groupe délégation intensive IA</span>
+              <span id="bar-pct" style="color:var(--rose);">0%</span>
+            </div>
+            <div style="background:rgba(255,107,138,.12);border-radius:2px;height:14px;width:100%;overflow:hidden;"><div id="bar-treat" style="height:100%;width:0%;background:var(--rose);border-radius:2px;transition:width 1.4s .2s ease;"></div></div>
+          </div>
+          <a href="https://arxiv.org/abs/2506.08872" target="_blank" style="font-family:var(--font-mono);font-size:.7rem;color:var(--teal);display:inline-block;margin-top:.6rem;">↗ arxiv.org · The Impact of AI on Critical Thinking (2025)</a>
+          ${correct?'<br><span class="crystal-gain">+1 💎</span>':''}`;
+
+        setTimeout(()=>{
+          document.getElementById('bar-ctrl').style.width='100%';
+          setTimeout(()=>{
+            document.getElementById('bar-treat').style.width='58%';
+            document.getElementById('bar-pct').textContent='58%';
+          },300);
+        },200);
+
+        cogAnswered++;
+        if(cogAnswered===3) setTimeout(()=>revealSection(cogNavZone),500);
+      };
+      ow.appendChild(b);
+    });
+  })();
+
+  // ── Q2 · AVANT/APRÈS ──
+  const q2=document.createElement('div');
+  q2.style.cssText='background:rgba(8,14,32,.8);border:1px solid rgba(245,166,35,.18);border-radius:5px;padding:1.2rem 1.4rem;margin:.9rem 0;';
+  q2.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--amber);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.6rem;">Question 2 · À votre avis</div>
+    <p style="font-size:1rem;color:var(--silver);font-weight:600;margin-bottom:.9rem;line-height:1.5;">Des étudiants utilisent l'IA pour leurs devoirs pendant un semestre. Quatre semaines après, leurs scores de rétention sont...</p>
+    <div class="options" id="cog2-opts"></div>
+    <div id="cog2-reveal" style="display:none;margin-top:1rem;"></div>`;
+  cogZone6.appendChild(q2);
+
+  (()=>{
+    const opts=['Identiques : l\'apprentissage se fait de toute façon.','Significativement plus bas : ils ont moins consolidé les connaissances.','Légèrement meilleurs : l\'IA leur a permis de voir plus de contenu.'];
+    const ow=q2.querySelector('#cog2-opts');
+    const rev=q2.querySelector('#cog2-reveal');
+    let done=false;
+    opts.forEach((opt,oi)=>{
+      const b=document.createElement('button'); b.className='option-btn'; b.textContent=opt;
+      b.onclick=()=>{
+        if(done)return; done=true;
+        const correct=oi===1;
+        ow.querySelectorAll('.option-btn').forEach((bb,j)=>bb.classList.add(j===oi?(correct?'correct':'wrong'):'disabled'));
+        if(correct) addCrystals(1);
+
+        const cols=[
+          {label:'Pendant le semestre',grpA:'Groupe IA',scoreA:88,grpB:'Groupe contrôle',scoreB:76,colorA:'var(--teal)',colorB:'rgba(200,212,232,.4)',note:'Avec l\'IA, les notes immédiates sont meilleures.'},
+          {label:'4 semaines après',grpA:'Groupe IA',scoreA:52,grpB:'Groupe contrôle',scoreB:74,colorA:'var(--rose)',colorB:'var(--teal)',note:'Sans avoir consolidé eux-mêmes, les connaissances ne restent pas.'},
+        ];
+
+        rev.style.display='block';
+        rev.innerHTML=`<div style="font-family:var(--font-mono);font-size:.62rem;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.7rem;">📊 Université de Colombie-Britannique, 2024</div>
+          <p style="font-size:.88rem;color:var(--silver);line-height:1.7;margin-bottom:1rem;">Les étudiants avec IA obtiennent de meilleures notes en cours de semestre. Mais lors des tests de rétention quatre semaines plus tard, leurs scores chutent significativement par rapport au groupe contrôle. L'IA a fait le travail. L'apprentissage n'a pas eu lieu.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;" id="avap-grid"></div>
+          ${correct?'<br><span class="crystal-gain">+1 💎</span>':''}`;
+
+        const grid=rev.querySelector('#avap-grid');
+        cols.forEach((col,ci)=>{
+          const card=document.createElement('div');
+          card.style.cssText='background:rgba(17,34,68,.5);border:1px solid rgba(200,212,232,.1);border-radius:4px;padding:.8rem;';
+          card.innerHTML=`<div style="font-family:var(--font-mono);font-size:.62rem;color:var(--dim);margin-bottom:.6rem;">${col.label}</div>
+            <div style="font-family:var(--font-mono);font-size:.7rem;color:${col.colorA};margin-bottom:.25rem;">${col.grpA}</div>
+            <div style="background:rgba(200,212,232,.08);border-radius:2px;height:20px;margin-bottom:.5rem;overflow:hidden;"><div id="avbar-${ci}-a" style="height:100%;width:0%;background:${col.colorA};border-radius:2px;transition:width 1s ${ci*.3}s ease;display:flex;align-items:center;padding-left:6px;font-family:var(--font-mono);font-size:.65rem;color:#000;font-weight:700;"></div></div>
+            <div style="font-family:var(--font-mono);font-size:.7rem;color:${col.colorB};margin-bottom:.25rem;">${col.grpB}</div>
+            <div style="background:rgba(200,212,232,.08);border-radius:2px;height:20px;overflow:hidden;"><div id="avbar-${ci}-b" style="height:100%;width:0%;background:${col.colorB};border-radius:2px;transition:width 1s ${ci*.3+.2}s ease;display:flex;align-items:center;padding-left:6px;font-family:var(--font-mono);font-size:.65rem;color:#000;font-weight:700;"></div></div>
+            <div style="font-size:.72rem;color:var(--dim);margin-top:.5rem;line-height:1.5;">${col.note}</div>`;
+          grid.appendChild(card);
+          setTimeout(()=>{
+            const ba=document.getElementById(`avbar-${ci}-a`);
+            const bb=document.getElementById(`avbar-${ci}-b`);
+            if(ba){ba.style.width=col.scoreA+'%';ba.textContent=col.scoreA+'%';}
+            if(bb){bb.style.width=col.scoreB+'%';bb.textContent=col.scoreB+'%';}
+          },200+ci*300);
+        });
+
+        cogAnswered++;
+        if(cogAnswered===3) setTimeout(()=>revealSection(cogNavZone),500);
+      };
+      ow.appendChild(b);
+    });
+  })();
+
+  // ── Q3 · TIMELINE GPS ──
+  const q3=document.createElement('div');
+  q3.style.cssText='background:rgba(8,14,32,.8);border:1px solid rgba(168,85,247,.18);border-radius:5px;padding:1.2rem 1.4rem;margin:.9rem 0;';
+  q3.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--violet);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.6rem;">Question 3 · À votre avis</div>
+    <p style="font-size:1rem;color:var(--silver);font-weight:600;margin-bottom:.9rem;line-height:1.5;">L'usage prolongé du GPS modifie-t-il le cerveau de façon mesurable ?</p>
+    <div class="options" id="cog3-opts"></div>
+    <div id="cog3-reveal" style="display:none;margin-top:1rem;"></div>`;
+  cogZone6.appendChild(q3);
+
+  (()=>{
+    const opts=['Non : le GPS est passif, il ne modifie pas le cerveau.','Oui : des études montrent une réduction de l\'activité de l\'hippocampe, zone clé de la mémoire.','On ne sait pas encore : le recul manque.'];
+    const ow=q3.querySelector('#cog3-opts');
+    const rev=q3.querySelector('#cog3-reveal');
+    let done=false;
+    opts.forEach((opt,oi)=>{
+      const b=document.createElement('button'); b.className='option-btn'; b.textContent=opt;
+      b.onclick=()=>{
+        if(done)return; done=true;
+        const correct=oi===1;
+        ow.querySelectorAll('.option-btn').forEach((bb,j)=>bb.classList.add(j===oi?(correct?'correct':'wrong'):'disabled'));
+        if(correct) addCrystals(1);
+
+        const steps=[
+          {label:'Début d\'utilisation GPS',icon:'🗺️',hippo:100,note:'L\'hippocampe est pleinement sollicité.'},
+          {label:'6 mois',icon:'📍',hippo:82,note:'Légère réduction de l\'activité de navigation spontanée.'},
+          {label:'1 an',icon:'📱',hippo:65,note:'Le sens de l\'orientation autonome diminue nettement.'},
+          {label:'Usage intensif prolongé',icon:'🧭',hippo:48,note:'Réduction mesurable du volume et de l\'activité de l\'hippocampe.'},
+        ];
+
+        rev.style.display='block';
+        rev.innerHTML=`<div style="font-family:var(--font-mono);font-size:.62rem;color:var(--violet);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.7rem;">📊 University College London · Bohbot et al.</div>
+          <p style="font-size:.88rem;color:var(--silver);line-height:1.7;margin-bottom:1rem;">Les utilisateurs intensifs du GPS sollicitent moins leur hippocampe, région clé de la mémoire et de la navigation. Ce n'est pas propre à l'IA : tout outil qui fait à notre place ce que nous pourrions faire nous-mêmes peut avoir cet effet.</p>
+          <div style="font-family:var(--font-mono);font-size:.68rem;color:var(--dim);margin-bottom:.6rem;">Activité de l'hippocampe selon la durée d'usage GPS</div>
+          <div id="timeline-gps" style="display:flex;flex-direction:column;gap:.5rem;"></div>
+          ${correct?'<br><span class="crystal-gain">+1 💎</span>':''}`;
+
+        const tl=rev.querySelector('#timeline-gps');
+        steps.forEach((st,si)=>{
+          const row=document.createElement('div');
+          row.style.cssText='display:flex;align-items:center;gap:.7rem;';
+          row.innerHTML=`<div style="font-size:1.1rem;flex-shrink:0;">${st.icon}</div>
+            <div style="flex:1;">
+              <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.68rem;color:var(--silver);margin-bottom:.2rem;">
+                <span>${st.label}</span><span id="tl-pct-${si}" style="color:${st.hippo>70?'var(--teal)':st.hippo>55?'var(--amber)':'var(--rose)'};">0%</span>
+              </div>
+              <div style="background:rgba(200,212,232,.08);border-radius:2px;height:12px;overflow:hidden;">
+                <div id="tl-bar-${si}" style="height:100%;width:0%;background:${st.hippo>70?'var(--teal)':st.hippo>55?'var(--amber)':'var(--rose)'};border-radius:2px;transition:width 1s ${si*.25}s ease;"></div>
+              </div>
+              <div style="font-size:.7rem;color:var(--dim);margin-top:.2rem;">${st.note}</div>
+            </div>`;
+          tl.appendChild(row);
+          setTimeout(()=>{
+            const bar=document.getElementById(`tl-bar-${si}`);
+            const pct=document.getElementById(`tl-pct-${si}`);
+            if(bar){bar.style.width=st.hippo+'%';}
+            if(pct){pct.textContent=st.hippo+'%';}
+          },300+si*250);
+        });
+
+        cogAnswered++;
+        if(cogAnswered===3) setTimeout(()=>revealSection(cogNavZone),500);
+      };
+      ow.appendChild(b);
+    });
+  })();
+
+  cogZone6.appendChild(cogNavZone);
+
+  const cogNote=document.createElement('p');
+  cogNote.style.cssText='font-size:.82rem;color:var(--dim);line-height:1.7;margin-top:.8rem;font-style:italic;';
+  cogNote.textContent='Ces résultats sont issus de recherches récentes, certaines encore en cours de validation. Ils ne signifient pas qu\'il faut éviter l\'IA, mais qu\'il faut l\'utiliser avec conscience, comme tout outil qui risque de faire à notre place ce qu\'on devrait faire soi-même.';
+  cogNavZone.appendChild(cogNote);
+
+  aH(cogNavZone, sep());
   end6.innerHTML='';
-  const toQcm=document.createElement('button'); toQcm.className='nav-btn amber'; toQcm.style.cssText='margin-top:1.5rem;display:block;margin-left:auto;margin-right:auto;';
-  toQcm.innerHTML='Vers le Grand Récapitulatif →';
-  toQcm.onclick=()=>render(8);
-  end6.appendChild(toQcm);
+  const toQcm6=document.createElement('button'); toQcm6.className='nav-btn amber'; toQcm6.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;';
+  toQcm6.innerHTML='Vers le Grand Récapitulatif →';
+  toQcm6.onclick=()=>render(8);
+  cogNavZone.appendChild(toQcm6);
+
+  el.appendChild(cogZone6);
   el.appendChild(end6);
 },
 
@@ -1881,58 +2216,133 @@ const nodes={
 // ── 9. ÉCRAN DE FIN ──
 9:(el)=>{
   aH(el,badge('Bilan Final'));
-  aH(el,scTitle('Le Voyage s\'achève… pour l\'instant'));
+  aH(el,scTitle('Votre quête est terminée… mais le voyage ne fait que commencer'));
 
-  const endWrap=document.createElement('div'); endWrap.className='end-wrap';
-  endWrap.innerHTML=`
-    <div class="end-scores">
-      <span class="score-pill crystal">💎 <span id="fc"></span> Cristaux</span>
-      <span class="score-pill gold">✦ <span id="fg"></span> Cristaux d'Or</span>
-      <span class="score-pill rank" id="fr"></span>
-    </div>`;
-  el.appendChild(endWrap);
-
-  document.getElementById('fc').textContent=crystals;
-  document.getElementById('fg').textContent=goldCrystals;
   const total=crystals+goldCrystals*2;
-  const rank=total>=16?'Architecte de Lucidité ✦':total>=10?'Voyageur Éveillé ◈':'Apprenti Chrononaute ◇';
-  document.getElementById('fr').textContent=rank;
-
-  // Typewriter message
-  const msg=total>=16
-    ? `Bravo. Vous avez traversé toutes les épreuves et découvert plusieurs passages secrets. L'IA n'a plus de secrets fondamentaux pour vous. Le vrai voyage commence maintenant, dans vos usages quotidiens.`
+  const rankData=total>=16
+    ? {
+        name:'Architecte de Lucidité',
+        symbol:'✦',
+        color:'#ffd700', rgb:'255,215,0',
+        border:'rgba(255,215,0,.5)',
+        glow:'rgba(255,215,0,.2)',
+        msg:`Vous avez traversé toutes les épreuves et découvert plusieurs passages secrets. L'IA n'a plus de secrets fondamentaux pour vous. Le vrai voyage commence maintenant, dans vos usages quotidiens.`,
+        trait:`Curiosité · Esprit critique · Lucidité`,
+        svgPortrait:(c,r,g)=>`
+          <circle cx="100" cy="80" r="38" fill="rgba(${r},.12)" stroke="${c}" stroke-width="1.5"/>
+          <circle cx="100" cy="65" r="14" fill="rgba(${r},.25)" stroke="${c}" stroke-width="1"/>
+          <path d="M78,95 Q100,118 122,95" fill="rgba(${r},.2)" stroke="${c}" stroke-width="1" stroke-linecap="round"/>
+          ${[0,60,120,180,240,300].map((a,i)=>`<circle cx="${100+46*Math.cos(a*Math.PI/180)}" cy="${80+46*Math.sin(a*Math.PI/180)}" r="${3+i%2*2}" fill="${c}" opacity=".9"><animate attributeName="opacity" values="0.9;0.3;0.9" dur="${1.2+i*.2}s" repeatCount="indefinite"/></circle>`).join('')}
+          <path d="M88,50 L100,30 L112,50" fill="${c}" opacity=".7"/>
+          <line x1="100" y1="30" x2="100" y2="20" stroke="${c}" stroke-width="1.5" opacity=".5"/>
+          <circle cx="100" cy="18" r="4" fill="${c}" opacity=".8"><animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite"/></circle>`,
+      }
     : total>=10
-    ? `Bonne navigation. Vous avez retenu l'essentiel. Quelques salles secrètes restent à découvrir ; revenez avec d'autres regards. Les réponses "neutres" cachent parfois les passages les plus intéressants.`
-    : `Le voyage était dense. C'est normal. Les grandes questions sur l'IA méritent plusieurs lectures. Recommencez : certaines réponses que vous n'avez pas choisies ouvrent des portes que vous n'avez pas encore vues.`;
+    ? {
+        name:'Voyageur Éveillé',
+        symbol:'◈',
+        color:'#00d4b4', rgb:'0,212,180',
+        border:'rgba(0,212,180,.4)',
+        glow:'rgba(0,212,180,.15)',
+        msg:`Bonne navigation. Vous avez retenu l'essentiel. Quelques salles secrètes restent à découvrir ; revenez avec d'autres regards. Les réponses "neutres" cachent parfois les passages les plus intéressants.`,
+        trait:`Exploration · Méthode · Ouverture`,
+        svgPortrait:(c,r,g)=>`
+          <circle cx="100" cy="80" r="38" fill="rgba(${r},.1)" stroke="${c}" stroke-width="1.2"/>
+          <circle cx="100" cy="65" r="14" fill="rgba(${r},.2)" stroke="${c}" stroke-width="1"/>
+          <path d="M78,95 Q100,115 122,95" fill="rgba(${r},.15)" stroke="${c}" stroke-width="1" stroke-linecap="round"/>
+          <path d="M62,80 L75,68 L75,92 Z" fill="${c}" opacity=".6"/>
+          <line x1="75" y1="80" x2="138" y2="80" stroke="${c}" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>
+          <circle cx="125" cy="58" r="8" fill="rgba(${r},.15)" stroke="${c}" stroke-width="1"><animate attributeName="opacity" values="1;0.4;1" dur="2.5s" repeatCount="indefinite"/></circle>
+          <text x="125" y="62" text-anchor="middle" font-size="9" fill="${c}" font-family="Share Tech Mono">?</text>`,
+      }
+    : {
+        name:'Apprenti Chrononaute',
+        symbol:'◇',
+        color:'#b088ff', rgb:'176,136,255',
+        border:'rgba(176,136,255,.4)',
+        glow:'rgba(176,136,255,.12)',
+        msg:`Le voyage était dense. C'est normal. Les grandes questions sur l'IA méritent plusieurs lectures. Recommencez : certaines réponses que vous n'avez pas choisies ouvrent des portes que vous n'avez pas encore vues.`,
+        trait:`Courage · Persévérance · Premier pas`,
+        svgPortrait:(c,r,g)=>`
+          <circle cx="100" cy="80" r="38" fill="rgba(${r},.08)" stroke="${c}" stroke-width="1"/>
+          <circle cx="100" cy="65" r="14" fill="rgba(${r},.18)" stroke="${c}" stroke-width="1"/>
+          <path d="M78,95 Q100,112 122,95" fill="rgba(${r},.12)" stroke="${c}" stroke-width="1" stroke-linecap="round"/>
+          <path d="M72,110 L100,50 L128,110 Z" fill="none" stroke="${c}" stroke-width="1" opacity=".3" stroke-dasharray="3,3"/>
+          <circle cx="100" cy="50" r="5" fill="${c}" opacity=".5"><animate attributeName="opacity" values="0.5;1;0.5" dur="3s" repeatCount="indefinite"/></circle>`,
+      };
 
-  const typeWrap=document.createElement('div');
-  typeWrap.style.cssText='margin:1.5rem 0 .5rem;min-height:4rem;font-size:1.05rem;color:var(--silver);line-height:1.85;font-family:var(--font-body);';
-  const cursor=document.createElement('span');
-  cursor.style.cssText='display:inline-block;width:2px;height:1.1em;background:var(--teal);vertical-align:text-bottom;animation:blink .7s step-end infinite;margin-left:2px;';
-  typeWrap.appendChild(cursor);
-  endWrap.insertAdjacentElement('afterend',typeWrap);
+  // ── CARTE HÉROS ──
+  const card=document.createElement('div');
+  card.style.cssText=`position:relative;max-width:420px;margin:2rem auto;background:linear-gradient(145deg,rgba(8,14,32,.98),rgba(17,34,68,.95));border:1px solid ${rankData.border};border-radius:12px;overflow:hidden;opacity:0;transform:scale(.92) translateY(20px);transition:opacity .8s ease,transform .8s ease;box-shadow:0 0 60px ${rankData.glow};`;
 
-  // Add blink keyframe if not present
-  if(!document.getElementById('blink-style')){
-    const st=document.createElement('style');st.id='blink-style';
-    st.textContent='@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}';
-    document.head.appendChild(st);
-  }
+  const svgH=160;
+  card.innerHTML=`
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,${rankData.glow},transparent 70%);pointer-events:none;"></div>
+    <div style="padding:1.8rem 1.8rem 0;text-align:center;">
+      <div id="rank-badge" style="font-family:var(--font-mono);font-size:.6rem;color:${rankData.color};letter-spacing:.22em;text-transform:uppercase;margin-bottom:.5rem;opacity:0;transition:opacity .6s .4s;">Rang obtenu</div>
+      <svg id="hero-svg" viewBox="0 0 200 ${svgH}" style="width:200px;height:${svgH}px;display:block;margin:0 auto;opacity:0;transition:opacity .8s .6s;">
+        ${rankData.svgPortrait(rankData.color,rankData.rgb,rankData.glow)}
+      </svg>
+      <div id="rank-name" style="font-family:var(--font-title);font-size:clamp(1.3rem,5vw,1.9rem);color:${rankData.color};text-shadow:0 0 30px ${rankData.glow};margin:.6rem 0 .2rem;opacity:0;transition:opacity .6s .9s;">${rankData.name} <span style="font-family:var(--font-mono);">${rankData.symbol}</span></div>
+      <div id="rank-trait" style="font-family:var(--font-mono);font-size:.62rem;color:rgba(${rankData.rgb},.6);letter-spacing:.15em;margin-bottom:1.2rem;opacity:0;transition:opacity .6s 1.1s;">${rankData.trait}</div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:1.2rem;padding:.8rem 1.8rem;border-top:1px solid rgba(${rankData.rgb},.12);border-bottom:1px solid rgba(${rankData.rgb},.12);">
+      <div id="stat-c" style="text-align:center;opacity:0;transition:opacity .5s 1.3s;">
+        <div style="font-family:var(--font-mono);font-size:1.4rem;color:var(--amber-glow);font-weight:700;" id="ctr">0</div>
+        <div style="font-family:var(--font-mono);font-size:.58rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;">Cristaux</div>
+      </div>
+      <div style="width:1px;background:rgba(${rankData.rgb},.15);margin:.3rem 0;"></div>
+      <div id="stat-g" style="text-align:center;opacity:0;transition:opacity .5s 1.5s;">
+        <div style="font-family:var(--font-mono);font-size:1.4rem;color:var(--gold);font-weight:700;" id="gtr">0</div>
+        <div style="font-family:var(--font-mono);font-size:.58rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;">Cristaux d'Or</div>
+      </div>
+      <div style="width:1px;background:rgba(${rankData.rgb},.15);margin:.3rem 0;"></div>
+      <div id="stat-t" style="text-align:center;opacity:0;transition:opacity .5s 1.7s;">
+        <div style="font-family:var(--font-mono);font-size:1.4rem;color:${rankData.color};font-weight:700;">${total}</div>
+        <div style="font-family:var(--font-mono);font-size:.58rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;">Score total</div>
+      </div>
+    </div>
+    <div style="padding:1.2rem 1.8rem 1.6rem;">
+      <div id="rank-msg" style="font-size:.95rem;color:var(--silver);line-height:1.8;opacity:0;transition:opacity .7s 2s;"></div>
+    </div>`;
 
-  let i=0;
-  const typeInterval=setInterval(()=>{
-    if(i<msg.length){
-      typeWrap.insertBefore(document.createTextNode(msg[i]),cursor);
-      i++;
-    } else {
-      clearInterval(typeInterval);
-      cursor.style.animation='blink .7s step-end infinite';
-      setTimeout(()=>cursor.style.display='none',2000);
-    }
-  },28);
+  el.appendChild(card);
 
-  // Advice cards
-  const adviceSep=document.createElement('hr'); adviceSep.className='sep'; adviceSep.style.marginTop='2rem';
+  // Déclenchement en cascade
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    card.style.opacity='1';
+    card.style.transform='scale(1) translateY(0)';
+    card.querySelector('#rank-badge').style.opacity='1';
+    card.querySelector('#hero-svg').style.opacity='1';
+    setTimeout(()=>{card.querySelector('#rank-name').style.opacity='1';},900);
+    setTimeout(()=>{card.querySelector('#rank-trait').style.opacity='1';},1100);
+    setTimeout(()=>{
+      card.querySelector('#stat-c').style.opacity='1';
+      // Compteurs animés
+      let c=0;
+      const ci=setInterval(()=>{c++;card.querySelector('#ctr').textContent=c;if(c>=crystals)clearInterval(ci);},40);
+    },1300);
+    setTimeout(()=>{
+      card.querySelector('#stat-g').style.opacity='1';
+      let g=0;
+      const gi=setInterval(()=>{g++;card.querySelector('#gtr').textContent=g;if(g>=goldCrystals)clearInterval(gi);},60);
+    },1500);
+    setTimeout(()=>{card.querySelector('#stat-t').style.opacity='1';},1700);
+    setTimeout(()=>{
+      const msgEl=card.querySelector('#rank-msg');
+      msgEl.style.opacity='1';
+      // Machine à écrire sur le message
+      let mi=0;
+      const msg=rankData.msg;
+      const tw=setInterval(()=>{
+        if(mi<msg.length){msgEl.textContent+=msg[mi];mi++;}
+        else clearInterval(tw);
+      },22);
+    },2000);
+  }));
+
+  // Séparateur + conseils
+  const adviceSep=document.createElement('hr'); adviceSep.className='sep'; adviceSep.style.marginTop='2.5rem';
   el.appendChild(adviceSep);
 
   const adviceHeader=document.createElement('div');
@@ -1952,16 +2362,16 @@ const nodes={
 
   const grid=document.createElement('div');
   grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem;margin-bottom:2rem;';
-  advices.forEach((a,i)=>{
-    const card=document.createElement('div');
-    card.style.cssText=`background:rgba(8,14,32,.8);border:1px solid rgba(${a.rgb},.2);border-radius:6px;padding:1.2rem 1.1rem;cursor:default;transition:all .3s;transform:translateY(0);opacity:0;animation:fadeScene .5s ease ${i*.08}s forwards;`;
-    card.innerHTML=`
+  advices.forEach((a,idx)=>{
+    const c2=document.createElement('div');
+    c2.style.cssText=`background:rgba(8,14,32,.8);border:1px solid rgba(${a.rgb},.2);border-radius:6px;padding:1.2rem 1.1rem;cursor:default;transition:all .3s;opacity:0;animation:fadeScene .5s ease ${idx*.08}s forwards;`;
+    c2.innerHTML=`
       <div style="width:42px;height:42px;border-radius:50%;background:rgba(${a.rgb},.12);border:1px solid rgba(${a.rgb},.3);display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin-bottom:.8rem;">${a.icon}</div>
       <div style="font-family:var(--font-mono);font-size:.68rem;color:var(--${a.color});letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;font-weight:700;">${a.title}</div>
       <p style="font-size:.88rem;color:#b0bdd0;line-height:1.72;margin:0;">${a.text}</p>`;
-    card.onmouseover=()=>{card.style.transform='translateY(-3px)';card.style.borderColor=`rgba(${a.rgb},.5)`;card.style.background=`rgba(${a.rgb},.06)`;};
-    card.onmouseout=()=>{card.style.transform='translateY(0)';card.style.borderColor=`rgba(${a.rgb},.2)`;card.style.background='rgba(8,14,32,.8)';};
-    grid.appendChild(card);
+    c2.onmouseover=()=>{c2.style.transform='translateY(-3px)';c2.style.borderColor=`rgba(${a.rgb},.5)`;c2.style.background=`rgba(${a.rgb},.06)`;};
+    c2.onmouseout=()=>{c2.style.transform='translateY(0)';c2.style.borderColor=`rgba(${a.rgb},.2)`;c2.style.background='rgba(8,14,32,.8)';};
+    grid.appendChild(c2);
   });
   el.appendChild(grid);
 
@@ -1976,6 +2386,7 @@ render(0);
 
 <footer id="site-footer">
   <p><span>DRANE PACA</span> &nbsp;·&nbsp; Semaine de l'IA &nbsp;·&nbsp; 2026</p>
+  <p>Mis en page par <span>Claude</span> (Anthropic) &nbsp;·&nbsp; Images générées par <span>Gemini</span> (Google) : vous y verrez des erreurs et biais&nbsp;! &nbsp;;-) &nbsp;·&nbsp; Musique générée par <span>Suno</span></p>
 </footer>
 
 </body>

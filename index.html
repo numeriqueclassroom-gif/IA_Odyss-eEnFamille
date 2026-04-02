@@ -145,11 +145,13 @@ body{background:var(--void);color:var(--silver);font-family:var(--font-body);fon
 .fact-box strong{color:var(--teal);}
 
 /* NAV BTN */
-.nav-btn{display:inline-flex;align-items:center;gap:.5rem;margin-top:1.8rem;padding:.78rem 1.5rem;background:transparent;border:1px solid var(--teal);border-radius:2px;color:var(--teal);font-family:var(--font-mono);font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .22s;}
-.nav-btn:hover{background:var(--teal);color:var(--void);box-shadow:0 0 18px rgba(0,212,180,.25);}
-.nav-btn.amber{border-color:var(--amber);color:var(--amber);}
-.nav-btn.amber:hover{background:var(--amber);color:var(--void);}
-.nav-btn:disabled{opacity:.35;pointer-events:none;}
+.nav-btn{display:inline-flex;align-items:center;gap:.5rem;margin-top:1.8rem;padding:.78rem 1.5rem;background:transparent;border:1px solid var(--teal);border-radius:2px;color:var(--teal);font-family:var(--font-mono);font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .22s;animation:navPulse 2.5s ease-in-out infinite;}
+.nav-btn:hover{background:var(--teal);color:var(--void);box-shadow:0 0 18px rgba(0,212,180,.35);animation:none;}
+.nav-btn.amber{border-color:var(--amber);color:var(--amber);animation:navPulseAmber 2.5s ease-in-out infinite;}
+.nav-btn.amber:hover{background:var(--amber);color:var(--void);box-shadow:0 0 18px rgba(245,166,35,.35);animation:none;}
+.nav-btn:disabled{opacity:.35;pointer-events:none;animation:none;}
+@keyframes navPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,212,180,0);}50%{box-shadow:0 0 0 6px rgba(0,212,180,.15);}}
+@keyframes navPulseAmber{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,0);}50%{box-shadow:0 0 0 6px rgba(245,166,35,.15);}}
 
 /* ═══ ESCAPE ENIGMAS ═══ */
 .enigma{background:rgba(8,12,28,.92);border:1px solid rgba(168,85,247,.3);border-radius:5px;padding:1.4rem;margin:1.5rem 0;position:relative;}
@@ -263,8 +265,12 @@ body{background:var(--void);color:var(--silver);font-family:var(--font-body);fon
     <div class="tl-node" id="tln-2"><span class="tl-year">1970</span></div>
     <div class="tl-node" id="tln-3"><span class="tl-year">1997</span></div>
     <div class="tl-node" id="tln-4"><span class="tl-year">2016</span></div>
+    <div class="tl-node" id="tln-10"><span class="tl-year">2022</span></div>
     <div class="tl-node" id="tln-5"><span class="tl-year">2024</span></div>
-    <div class="tl-node" id="tln-6"><span class="tl-year">2026</span></div>
+    <div class="tl-node" id="tln-7"><span class="tl-year">Énergie</span></div>
+    <div class="tl-node" id="tln-6"><span class="tl-year">2026 et après</span></div>
+    <div class="tl-node" id="tln-8"><span class="tl-year">Quiz</span></div>
+    <div class="tl-node" id="tln-9"><span class="tl-year">Bilan</span></div>
   </div>
   <div id="scene"></div>
 </div>
@@ -272,17 +278,21 @@ body{background:var(--void);color:var(--silver);font-family:var(--font-body);fon
 <script>
 // ══ STATE ══
 let crystals=0, goldCrystals=0;
-const epochs=['PROLOGUE','ÉPOQUE I · 1950','ÉPOQUE II · 1970','ÉPOQUE III · 1997','ÉPOQUE IV · 2016','ÉPOQUE V · 2024','ÉPOQUE VI · 2026'];
+const epochs=['PROLOGUE','ÉPOQUE I · 1950','ÉPOQUE II · 1970','ÉPOQUE III · 1997','ÉPOQUE IV · 2016','ÉPOQUE V · 2024','ÉPOQUE VI · 2026 et après','ÉPOQUE V · Forêt de l\'Énergie','RÉCAPITULATIF','BILAN FINAL','ÉPOQUE IV bis · 2022'];
 
 function addCrystals(n){crystals+=n;document.getElementById('cc').textContent=crystals;}
 function addGold(n){goldCrystals+=n;document.getElementById('gc').textContent=goldCrystals;}
 function updateTimeline(a){
-  for(let i=0;i<=6;i++){
+  const order=[0,1,2,3,4,10,5,7,6,8,9];
+  const pos=order.indexOf(a);
+  [0,1,2,3,4,5,6,7,8,9,10].forEach(i=>{
     const el=document.getElementById('tln-'+i);
+    if(!el)return;
+    const ipos=order.indexOf(i);
     el.className='tl-node';
-    if(i<a)el.classList.add('visited');
+    if(ipos<pos)el.classList.add('visited');
     else if(i===a)el.classList.add('current');
-  }
+  });
 }
 function render(id){
   updateTimeline(id);
@@ -301,12 +311,20 @@ function scTxt(h){return `<p class="scene-text">${h}</p>`;}
 function factBox(h){return `<div class="fact-box">${h}</div>`;}
 function sep(){return `<hr class="sep">`;}
 
+// ══ REVEAL HELPER ══
+function revealSection(el){
+  el.style.cssText='display:block;opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease;';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    el.style.opacity='1';el.style.transform='translateY(0)';
+  }));
+}
+
 // ══ PAUSE FAMILLE — CHRONO INTERACTIF ══
 let pauseTimerCount=0;
-function buildPause(el, question, hint='', revealContent='', durationSec=120){
+function buildPause(el, question, hint='', revealContent='', durationSec=120, onReveal=null){
   const pid='pause-'+(pauseTimerCount++);
   const TOTAL=durationSec;
-  const CIRCUM=138; // 2π×22
+  const CIRCUM=138;
 
   const wrap=document.createElement('div'); wrap.className='pause-famille';
   wrap.innerHTML=`
@@ -323,11 +341,11 @@ function buildPause(el, question, hint='', revealContent='', durationSec=120){
       </div>
       <div class="pause-timer-info">
         Discutez ensemble.<br>
-        <strong>La réponse se révèle à la fin du chrono.</strong>
+        <strong>La suite se révèle à la fin du chrono.</strong>
       </div>
     </div>
     <div class="pause-actions" id="${pid}-actions">
-      <button class="pause-start-btn" id="${pid}-start">▶ Lancer le chrono — 2 min</button>
+      <button class="pause-start-btn" id="${pid}-start">▶ Lancer le chrono (2 min)</button>
       <button class="pause-skip-btn" id="${pid}-skip">Découvrir la réponse maintenant</button>
     </div>
     <div class="pause-content-reveal" id="${pid}-reveal">
@@ -337,10 +355,7 @@ function buildPause(el, question, hint='', revealContent='', durationSec=120){
 
   let timer=null, remaining=TOTAL, running=false;
 
-  function fmt(s){
-    const m=Math.floor(s/60), ss=s%60;
-    return `${m}:${ss.toString().padStart(2,'0')}`;
-  }
+  function fmt(s){const m=Math.floor(s/60),ss=s%60;return `${m}:${ss.toString().padStart(2,'0')}`;}
   function setRing(s){
     const prog=wrap.querySelector(`#${pid}-prog`);
     const num=wrap.querySelector(`#${pid}-num`);
@@ -356,6 +371,7 @@ function buildPause(el, question, hint='', revealContent='', durationSec=120){
     wrap.querySelector(`#${pid}-actions`).style.display='none';
     wrap.querySelector(`#${pid}-reveal`).classList.add('show');
     wrap.querySelector(`#${pid}-prog`).style.strokeDashoffset='0';
+    if(onReveal) setTimeout(onReveal, 400);
   }
   function startTimer(){
     if(running) return;
@@ -363,15 +379,12 @@ function buildPause(el, question, hint='', revealContent='', durationSec=120){
     wrap.querySelector(`#${pid}-start`).style.display='none';
     wrap.querySelector(`#${pid}-tw`).style.display='flex';
     setRing(remaining);
-    timer=setInterval(()=>{
-      remaining--;
-      setRing(remaining);
-      if(remaining<=0) reveal();
-    },1000);
+    timer=setInterval(()=>{remaining--;setRing(remaining);if(remaining<=0)reveal();},1000);
   }
 
   wrap.querySelector(`#${pid}-start`).onclick=startTimer;
   wrap.querySelector(`#${pid}-skip`).onclick=reveal;
+  return wrap;
 }
 
 // Shim: old pause() calls replaced — keep for safety
@@ -382,6 +395,7 @@ function pause(q,c=''){
 function navBtn(el,txt,next,amber=false){
   const b=document.createElement('button');
   b.className='nav-btn'+(amber?' amber':'');
+  b.style.cssText='display:block;margin-left:auto;margin-right:auto;';
   b.innerHTML=txt+' →';
   b.onclick=()=>render(next);
   el.appendChild(b);
@@ -420,15 +434,15 @@ function buildJournal(el, id, author, date, quote){
 // ══ SECRET ROOM BUILDER ══
 function buildSecretRoom(el, id, content){
   const r=document.createElement('div'); r.className='secret-room'; r.id='secret-'+id;
-  r.innerHTML=`<div class="secret-label">✦ Salle Secrète — Passage Dérobé</div>${content}`;
+  r.innerHTML=`<div class="secret-label">✦ Salle Secrète · Passage Dérobé</div>${content}`;
   el.appendChild(r);
   return r;
 }
 
 // ══ CHALLENGE BUILDER ══
-function challenge(el,{question,options,feedbacks,crystalOnCorrect,onCorrect,onNeutral,door,journal}){
+function challenge(el,{question,options,feedbacks,crystalOnCorrect,onCorrect,onNeutral,onAnswered,journal}){
   const w=document.createElement('div'); w.className='challenge';
-  w.innerHTML=`<div class="challenge-label">— Une question est gravée sur le mur —</div><h3>${question}</h3>`;
+  w.innerHTML=`<div class="challenge-label">· Une question ·</div><h3>${question}</h3>`;
   const ow=document.createElement('div'); ow.className='options';
   const fb=document.createElement('div'); fb.className='feedback';
   let done=false;
@@ -440,9 +454,10 @@ function challenge(el,{question,options,feedbacks,crystalOnCorrect,onCorrect,onN
       fb.className='feedback show '+(opt.correct?'good':opt.neutral?'info':'bad');
       fb.innerHTML=feedbacks[i];
       if(opt.correct&&crystalOnCorrect){addCrystals(crystalOnCorrect);fb.innerHTML+=`<br><span class="crystal-gain">+${crystalOnCorrect} 💎</span>`;}
-      if(opt.correct&&door){setTimeout(()=>{unlockDoor(door,()=>{if(journal)journal.classList.add('show');});},500);}
+      if(opt.correct&&journal) setTimeout(()=>journal.classList.add('show'),500);
       if(opt.correct&&onCorrect) setTimeout(onCorrect,700);
       if(opt.neutral&&onNeutral) setTimeout(onNeutral,700);
+      if(onAnswered) setTimeout(onAnswered,800);
     };
     ow.appendChild(b);
   });
@@ -453,64 +468,129 @@ function challenge(el,{question,options,feedbacks,crystalOnCorrect,onCorrect,onN
 // ═══ ENIGMA BUILDERS ═══
 // ══════════════════════════════════════
 
-// ── ENIGMA 1 : MORSE BINARY DECODE ──
+// ── ENIGMA 1 : BINARY DECODE INTERACTIF ──
 function buildMorseEnigma(el, onSuccess){
+  // AIDE : A=0001(1), I=1001(9), D=0100(4), E=0101(5)
+  const groups=[
+    {bits:[0,0,0,1], decimal:1, letter:'A'},
+    {bits:[1,0,0,1], decimal:9, letter:'I'},
+    {bits:[0,1,0,0], decimal:4, letter:'D'},
+    {bits:[0,1,0,1], decimal:5, letter:'E'},
+  ];
+  const symbols=['▪','▪','▪','·','·','▪','▪','·','▪','·','▪','▪','▪','·','▪','·'];
+
   const w=document.createElement('div'); w.className='enigma';
-  w.innerHTML=`<div class="enigma-label">📜 Un message codé vous interpelle</div>
-    <h3>Gravé dans la pierre devant vous, un message codé. Chaque symbole correspond à une lettre selon la table secrète de Turing. Reconstituez le mot caché.</h3>
-    <div style="background:rgba(17,34,68,.6);border:1px solid rgba(168,85,247,.2);padding:.8rem 1rem;border-radius:3px;margin:.8rem 0;font-family:var(--font-mono);font-size:.85rem;color:var(--violet);letter-spacing:.12em;">
-      Message : ▪▪▪ ▪ · ▪ ·
+  w.innerHTML=`
+    <div class="enigma-label">📜 Un message codé vous interpelle</div>
+    <h3>Gravé dans la pierre : un message en code binaire. Quatre groupes de 4 cases, chaque case vaut 0 (▪) ou 1 (·).</h3>
+
+    <div style="background:rgba(17,34,68,.7);border:1px solid rgba(245,166,35,.2);border-radius:4px;padding:.8rem 1rem;margin:.8rem 0;font-size:.9rem;color:#c8d0e0;line-height:1.8;">
+      <strong style="color:var(--amber-glow);">Comment lire un groupe ?</strong><br>
+      Chaque case a une valeur fixe selon sa position, comme des pièces de monnaie :<br>
+      <span style="font-family:var(--font-mono);color:var(--amber);">8 &nbsp;·&nbsp; 4 &nbsp;·&nbsp; 2 &nbsp;·&nbsp; 1</span><br>
+      Si la case vaut <strong style="color:var(--teal);">1</strong>, on garde la pièce. Si elle vaut <strong style="color:var(--dim);">0</strong>, on la laisse. On additionne ce qu'on garde.<br><br>
+      <strong style="color:var(--amber-glow);">Exemple avec le 1er groupe :</strong><br>
+      <span style="font-family:var(--font-mono);">
+        <span style="color:var(--teal);">▪</span><span style="color:var(--teal);">▪</span><span style="color:var(--teal);">▪</span><span style="color:var(--teal);">·</span>
+        = 0×8 + 0×4 + 0×2 + 1×1 = <strong style="color:var(--silver);">1</strong>
+      </span>
+      → lettre n°1 dans l'alphabet = <strong style="color:var(--teal);">A</strong><br>
+      À vous pour les 3 suivants.
     </div>
-    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.8rem;">Table de Turing : ▪ = 0 &nbsp;|&nbsp; · = 1 &nbsp;|&nbsp; espace = séparateur de lettre<br>
-    Chaque lettre est codée en 4 bits selon l'alphabet (A=0001, B=0010, C=0011...)</p>
-    <div id="morse-hint-btn" class="enigma-hint">💡 Indice (cliquer pour révéler)</div>
-    <div id="morse-hint-txt" style="display:none;font-family:var(--font-mono);font-size:.8rem;color:var(--amber-glow);margin:.5rem 0;padding:.4rem .8rem;background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.15);border-radius:2px;">
-      ▪▪▪ = 0001 = 1 → A &nbsp;|&nbsp; ▪ = 0001... non, ▪ seul = 1 bit. Comptez les bits par groupe !
+
+    <div style="display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap;margin:1rem 0;">
+      <div style="flex:1;min-width:220px;">
+        <div style="font-family:var(--font-mono);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.3rem;">Le message</div>
+        <div id="bin-groups" style="display:flex;gap:.6rem;flex-wrap:wrap;"></div>
+      </div>
     </div>
-    <p style="font-size:.88rem;color:var(--dim);margin:.6rem 0 .4rem;">Cliquez sur les lettres dans le bon ordre pour former le mot :</p>
-    <div class="morse-grid" id="morse-grid"></div>
-    <div class="morse-answer" id="morse-answer">_</div>
+
+    <div style="font-family:var(--font-mono);font-size:.6rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem;">Cliquez les lettres dans l'ordre pour former le mot</div>
+    <div class="morse-grid" id="bin-alpha"></div>
+    <div class="morse-answer" id="bin-answer">A _ _ _</div>
+
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-      <button class="morse-check-btn" id="morse-check">Vérifier →</button>
-      <button class="morse-check-btn" id="morse-clear" style="opacity:.6;">Effacer</button>
+      <button class="morse-check-btn" id="bin-check">Vérifier →</button>
+      <button class="morse-check-btn" id="bin-reset" style="opacity:.6;">Recommencer</button>
     </div>
-    <div class="feedback" id="morse-fb"></div>`;
+    <div class="feedback" id="bin-fb"></div>`;
   el.appendChild(w);
 
-  const hint=w.querySelector('#morse-hint-btn');
-  hint.onclick=()=>{
-    const t=w.querySelector('#morse-hint-txt');
-    t.style.display=t.style.display==='none'?'block':'none';
-    hint.classList.toggle('revealed');
-  };
+  const groupsEl=w.querySelector('#bin-groups');
+  const fb=w.querySelector('#bin-fb');
+  let solved=false;
 
-  const letters='ABCDEFGHIJKLM'.split('');
-  const grid=w.querySelector('#morse-grid');
-  let answer='';
-  letters.forEach(l=>{
+  // Premier groupe pré-résolu (exemple donné)
+
+  groups.forEach((g,gi)=>{
+    const groupWrap=document.createElement('div');
+    groupWrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:.25rem;';
+
+    const bitsRow=document.createElement('div');
+    bitsRow.style.cssText='display:flex;gap:.2rem;';
+
+    g.bits.forEach((bit,bi)=>{
+      const cell=document.createElement('div');
+      const isSolved=gi===0;
+      cell.style.cssText=`width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:1rem;border-radius:3px;border:1px solid ${isSolved?(bit?'rgba(0,212,180,.5)':'rgba(168,85,247,.15)'):'rgba(168,85,247,.3)'};background:${isSolved?(bit?'rgba(0,212,180,.1)':'rgba(17,34,68,.5)'):'rgba(17,34,68,.7)'};color:${isSolved?(bit?'var(--teal)':'rgba(106,127,160,.5)'):'var(--violet)'};cursor:default;transition:all .2s;`;
+      cell.textContent=bit===0?'▪':'·';
+      bitsRow.appendChild(cell);
+    });
+
+    const label=document.createElement('div');
+    label.style.cssText=`font-family:var(--font-mono);font-size:.6rem;color:${gi===0?'var(--teal)':'var(--dim)'};`;
+    label.textContent=gi===0?'→ A (exemple)':'groupe '+(gi+1);
+
+    groupWrap.appendChild(bitsRow);
+    groupWrap.appendChild(label);
+
+    groupsEl.appendChild(groupWrap);
+  });
+
+  // Clavier alphabet A-M
+  const alphaGrid=w.querySelector('#bin-alpha');
+  const answerEl=w.querySelector('#bin-answer');
+  let userAnswer='A'; // premier groupe déjà donné
+
+  function updateAnswerDisplay(){
+    const display=userAnswer.split('').concat(['_','_','_','_']).slice(0,4);
+    answerEl.textContent=display.join(' ');
+  }
+  updateAnswerDisplay();
+
+  'ABCDEFGHIJKLM'.split('').forEach(l=>{
     const c=document.createElement('div'); c.className='morse-cell'; c.textContent=l;
     c.onclick=()=>{
-      if(answer.length<5){answer+=l;w.querySelector('#morse-answer').textContent=answer;}
+      if(userAnswer.length<4){
+        userAnswer+=l;
+        updateAnswerDisplay();
+      }
     };
-    grid.appendChild(c);
+    alphaGrid.appendChild(c);
   });
-  w.querySelector('#morse-clear').onclick=()=>{answer='';w.querySelector('#morse-answer').textContent='_';};
-  const fb=w.querySelector('#morse-fb');
-  let solved=false;
-  w.querySelector('#morse-check').onclick=()=>{
+
+  w.querySelector('#bin-reset').onclick=()=>{
+    userAnswer='A';
+    updateAnswerDisplay();
+    fb.className='feedback';
+  };
+
+  w.querySelector('#bin-check').onclick=()=>{
     if(solved) return;
-    // Answer: THINK (▪▪▪=0001+0010... simplified: the answer is DATA)
-    // Simplified for gameplay: ▪▪▪ ▪ · ▪ · → groups: 0001 0010 1001 0100 → remap → AIDE
-    // We use "AIDE" as the answer for the puzzle
-    if(answer.toUpperCase()==='AIDE'){
+    if(userAnswer.length<4){
+      fb.className='feedback show bad';
+      fb.innerHTML=`Le mot fait 4 lettres. Cliquez encore ${4-userAnswer.length} lettre(s).`;
+      return;
+    }
+    if(userAnswer==='AIDE'){
       solved=true;
       fb.className='feedback show good';
-      fb.innerHTML=`✓ Correct ! <strong>AIDE</strong> : c'est exactement ça. Turing ne cherchait pas à créer un outil tout-puissant, mais une <em>aide à la pensée</em>. Ce mot résume sa vision originelle. <br><span class="crystal-gain">+1 💎</span>`;
+      fb.innerHTML=`✓ Correct ! <strong>AIDE</strong> : c'est exactement ça. Turing ne cherchait pas à créer un outil tout-puissant, mais une <em>aide à la pensée</em>. Ce mot résume sa vision originelle.<br><span class="crystal-gain">+1 💎</span>`;
       addCrystals(1);
-      if(onSuccess) setTimeout(onSuccess, 600);
+      if(onSuccess) setTimeout(onSuccess,600);
     } else {
       fb.className='feedback show bad';
-      fb.innerHTML=`"${answer}" n'est pas le bon mot. Recompte les bits : ▪▪▪ = 3 points = 0+0+1 → relis la table. Le mot a 4 lettres.`;
+      fb.innerHTML=`"${userAnswer}" n'est pas le bon mot. Vérifiez votre calcul pour chaque groupe et recommencez.`;
     }
   };
 }
@@ -518,18 +598,18 @@ function buildMorseEnigma(el, onSuccess){
 // ── ENIGMA 2 : PROMPT REORDER ──
 function buildPromptEnigma(el, onSuccess){
   const correctOrder = [
-    'Vous êtes professeur',
-    'explique à un élève de 14 ans',
-    'ce qu\'est un biais algorithmique',
-    'en 3 exemples concrets',
-    'sans jargon technique'
+    'Tu es un assistant aux devoirs',
+    'aide un élève de 15 ans',
+    'à comprendre la Révolution française',
+    'en lui posant des questions',
+    'sans jamais donner les réponses directement'
   ];
   const shuffled = [...correctOrder].sort(()=>Math.random()-0.5);
 
   const w=document.createElement('div'); w.className='enigma';
   w.innerHTML=`<div class="enigma-label">🔐 Énigme · Prompt Démembré</div>
     <h3>Un prompt efficace a été déchiqueté par une erreur de transmission. Remets les fragments dans le bon ordre pour obtenir un prompt bien structuré.</h3>
-    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.8rem;">Glisse ou clique les fragments dans l'ordre logique : rôle → destinataire → sujet → format → contrainte.</p>
+    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.8rem;">Remets les fragments dans le bon ordre pour construire un prompt efficace : rôle → destinataire → sujet → méthode → contrainte.</p>
     <p style="font-size:.82rem;color:var(--dim);margin-bottom:.5rem;font-family:var(--font-mono);">FRAGMENTS DISPONIBLES :</p>
     <div class="prompt-pieces" id="prompt-src"></div>
     <p style="font-size:.82rem;color:var(--dim);margin:.7rem 0 .4rem;font-family:var(--font-mono);">TON PROMPT RECONSTRUIT :</p>
@@ -568,7 +648,7 @@ function buildPromptEnigma(el, onSuccess){
     if(ok){
       solved=true;
       fb.className='feedback show good';
-      fb.innerHTML=`✓ Parfait ! Ton prompt est structuré comme un professionnel : <strong>rôle → destinataire → sujet → format → contrainte</strong>. C'est exactement ce qui transforme une demande vague en résultat ciblé.<br><span class="crystal-gain">+1 💎</span>`;
+      fb.innerHTML=`✓ Parfait ! Le prompt est bien structuré : <strong>rôle → destinataire → sujet → méthode → contrainte</strong>. Résultat : l'IA ne fait pas les devoirs à la place de l'élève : elle l'accompagne. C'est exactement ce qui transforme un outil qui remplace en outil qui développe.<br><span class="crystal-gain">+1 💎</span>`;
       addCrystals(1);
       if(onSuccess) setTimeout(onSuccess,600);
     } else {
@@ -693,15 +773,15 @@ function buildProbExplorer(el){
   const s={
     before:'Le chat est assis sur le',
     choices:[{word:'toit',pct:28,correct:true},{word:'sol',pct:22},{word:'canapé',pct:18},{word:'livre',pct:11},{word:'réfrigérateur',pct:3}],
-    expl:`"toit" avait la probabilité la plus haute, mais l'IA aurait pu choisir "sol" ou "canapé" ; elle tire au sort selon ces probabilités. C'est pourquoi les réponses varient. La <strong>température</strong> règle cette variabilité : à 0, elle choisit toujours le plus probable ; à 1, elle explore plus librement.`
+    expl:`L'IA a lu des milliards de phrases pendant son entraînement. Elle a appris que "chat" est souvent suivi de "toit", "sol" ou "canapé". Ces fréquences sont devenues des <strong>probabilités</strong>. Ici, "toit" avait la plus haute, mais l'IA aurait pu choisir "sol" ou "canapé" : elle tire au sort selon ces probabilités. C'est pourquoi les réponses varient d'une fois à l'autre. La <strong>température</strong> règle cette variabilité : à 0, elle choisit toujours le plus probable ; à 1, elle explore plus librement.`
   };
   const w=document.createElement('div');w.className='prob-explorer';
-  w.innerHTML=`<div class="prob-label">🎲 L'IA Parie — Elle ne Sait Pas</div>
-    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.8rem;">Voici les probabilités internes avant que l'IA choisisse son prochain mot.</p>
+  w.innerHTML=`<div class="prob-label">🎲 L'IA Parie · Elle ne Sait Pas</div>
+    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.8rem;">Pendant son entraînement, l'IA a analysé des milliards de phrases. Elle a mémorisé <em>avec quelle fréquence</em> chaque mot suit chaque autre. Ces fréquences deviennent des probabilités. Choisissez le mot que vous mettriez ici ; vous verrez ensuite ensuite ce que l'IA aurait prédit.</p>
     <div class="prob-sentence">${s.before} <span class="blank">___</span></div>
-    <div class="prob-bars" id="pb"></div>
-    <p class="prob-word-btns" style="font-family:var(--font-mono);font-size:.72rem;color:var(--dim);margin-bottom:.5rem;">Quel mot choisirez-vous ?</p>
+    <p class="prob-word-btns" style="font-family:var(--font-mono);font-size:.72rem;color:var(--dim);margin-bottom:.5rem;margin-top:.8rem;">Quel mot choisissez-vous ?</p>
     <div class="prob-word-btns" id="pw"></div>
+    <div id="pb" style="display:none;margin-top:1rem;"></div>
     <div class="prob-reveal" id="pr"></div>`;
   el.appendChild(w);
   const colors=['#00d4b4','#88eeff','#a855f7','#f5a623','#ff6b8a'];
@@ -711,7 +791,6 @@ function buildProbExplorer(el){
     const row=document.createElement('div');row.className='prob-bar-row';
     row.innerHTML=`<div class="prob-word">${c.word}</div><div class="prob-bar-bg"><div class="prob-bar-fill" data-pct="${c.pct}%" style="width:0%;background:${colors[i]};"></div></div>`;
     pb.appendChild(row);
-    setTimeout(()=>{row.querySelector('.prob-bar-fill').style.width=c.pct+'%';},100+i*130);
   });
   const pw=w.querySelector('#pw'),pr=w.querySelector('#pr');
   let done=false;
@@ -720,8 +799,17 @@ function buildProbExplorer(el){
     b.onclick=()=>{
       if(done)return;done=true;
       pw.querySelectorAll('.prob-word-btn').forEach(bb=>bb.classList.add('chosen'));
+      // Reveal bars with animation
+      pb.style.display='block';
+      pb.style.opacity='0'; pb.style.transition='opacity .4s';
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{pb.style.opacity='1';}));
+      setTimeout(()=>{
+        sorted.forEach((sc,i)=>{
+          setTimeout(()=>{pb.querySelectorAll('.prob-bar-fill')[i].style.width=sc.pct+'%';},i*130);
+        });
+      },200);
       pr.className='prob-reveal show';
-      pr.innerHTML=(c.correct?`✓ "${c.word}" était le plus probable (${c.pct}%). `:`"${c.word}" était plausible (${c.pct}%), mais pas le favori. `)+s.expl;
+      pr.innerHTML=(c.correct?`✓ "${c.word}" était le mot le plus probable (${c.pct}%). `:`"${c.word}" était plausible (${c.pct}%), mais pas le favori de l'IA. `)+s.expl;
     };
     pw.appendChild(b);
   });
@@ -730,13 +818,13 @@ function buildProbExplorer(el){
 // ── BINARY DRILL ──
 function buildBinaryDrill(el,onSuccess){
   const choices=[
-    {label:'A — Écriture mystérieuse',preview:'ᚳᚻᚪᛏ · ᚱᚢᚾᛖ ᛋᛖᚳᚱᛖᛏ',correct:false,fb:'Séduisant, mais non. Les runes sont une écriture humaine. Une IA stocke des mathématiques, pas du mystère.'},
-    {label:'B — Séquence binaire',preview:'01100011 01101000 01100001 01110100',correct:true,fb:`✓ Exact. "chat" en UTF-8 = 4 octets = 01100011 01101000 01100001 01110100. Mais même ce binaire est ensuite transformé en <strong>vecteurs de centaines de nombres décimaux</strong>. L'IA ne "lit" jamais. Elle calcule.`},
-    {label:'C — Code hexadécimal',preview:'0x63 0x68 0x61 0x74',correct:false,fb:`L'hexadécimal représente les mêmes données binaires, plus lisible pour les humains. L'IA, elle, travaille en réalité avec des représentations vectorielles bien plus complexes que de simples octets.`},
+    {label:'A · Écriture mystérieuse',preview:'ᛖᚳᚻᛖᚳᛋ · ᚱᚢᚾᛖ ᛋᛖᚳᚱᛖᛏ',correct:false,fb:`Séduisant, mais non. Les runes sont une écriture humaine. Une IA ne stocke pas de symboles : elle stocke des mathématiques. Ce qu'elle reçoit en entrée s'appelle un <strong>token</strong>, c'est-à-dire un fragment de texte converti en nombre.`},
+    {label:'B · Séquence binaire',preview:'11101001 10001100 11001000 11101001 10001100 11001000',correct:true,fb:`✓ Exact. "échecs" en UTF-8 = 6 octets en binaire (le "é" seul prend déjà 2 octets). Chaque <strong>token</strong> (le nom de ces fragments de texte que l'IA découpe) est converti en séquence de bits, puis transformé en vecteur de centaines de nombres décimaux. L'IA ne "lit" jamais les mots. Elle calcule.`},
+    {label:'C · Code hexadécimal',preview:'0xC3 0xA9 0x63 0x68 0x65 0x63 0x73',correct:false,fb:`L'hexadécimal représente les mêmes données binaires, mais sous une forme plus lisible pour les humains. Dans les deux cas, ce qu'on appelle un <strong>token</strong> un fragment de texte comme "éch" ou "ecs", finit converti en suite de nombres. L'IA travaille avec des vecteurs mathématiques, pas avec du texte.`},
   ].sort(()=>Math.random()-.5);
   const w=document.createElement('div');w.className='enigma';
   w.innerHTML=`<div class="enigma-label">🖥 Un écran s'illumine devant vous</div>
-    <h3>Sur un écran qui scintille devant vous, l'IA reçoit le mot <span style="color:var(--amber-glow);font-family:var(--font-mono)">chat</span>. Parmi ces représentations, laquelle correspond à ce qu'elle traite réellement ?</h3>
+    <h3>Sur un écran qui scintille devant vous, l'IA reçoit le mot <span style="color:var(--amber-glow);font-family:var(--font-mono)">échecs</span>. Parmi ces représentations, laquelle correspond à ce qu'elle traite réellement ?</h3>
     <div id="bd-opts" style="display:flex;flex-direction:column;gap:.5rem;margin:.8rem 0;"></div>
     <div class="feedback" id="bd-fb"></div>`;
   el.appendChild(w);
@@ -765,11 +853,27 @@ function buildBinaryDrill(el,onSuccess){
 function buildNeuralNet(el){
   const w=document.createElement('div');w.className='neural-wrap';
   w.innerHTML=`<div class="neural-label">🧠 Une machine s'éveille sous vos yeux</div>
-    <p style="font-size:.87rem;color:var(--dim);margin-bottom:.7rem;">Un signal entre (le token). Il traverse des couches de calcul. Un résultat sort. Cliquez pour voir le flux.</p>
+    <p style="font-size:.9rem;color:var(--silver);margin-bottom:.5rem;line-height:1.7;">Ce schéma représente un <strong style="color:var(--amber-glow)">réseau de neurones artificiels</strong> : le moteur de toute IA moderne. Chaque cercle est un <strong style="color:var(--teal)">neurone artificiel</strong>, chaque trait une <strong style="color:var(--teal)">connexion</strong>.</p>
+    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.9rem;line-height:1.7;">Quand vous tapez un mot, il entre à gauche sous forme de nombres. Il "voyage" de couche en couche : chaque neurone reçoit des signaux, les pondère, et transmet un résultat. À droite sort une prédiction : le mot le plus probable pour continuer votre phrase. <strong style="color:var(--silver)">Cliquez pour voir ce flux s'activer.</strong></p>
     <svg id="nn-svg" viewBox="0 0 700 200" style="width:100%;height:195px;"></svg>
-    <div style="text-align:center;margin-top:.4rem;"><button class="token-btn" id="nn-btn">⚡ Activer</button></div>`;
+    <div id="nn-comment" style="min-height:2.2rem;margin:.6rem 0 .3rem;font-family:var(--font-mono);font-size:.78rem;color:var(--amber-glow);text-align:center;transition:opacity .3s;opacity:0;"></div>
+    <div style="text-align:center;margin-top:.2rem;"><button class="token-btn" id="nn-btn">⚡ Activer le réseau</button></div>
+    <div style="display:flex;gap:1.2rem;justify-content:center;flex-wrap:wrap;margin-top:.9rem;font-family:var(--font-mono);font-size:.7rem;color:var(--dim);">
+      <span>● Neurone inactif</span>
+      <span style="color:var(--teal);">● Neurone activé</span>
+      <span style="color:rgba(200,212,232,.3);">— Connexion au repos</span>
+      <span style="color:var(--amber);">— Signal en transit</span>
+    </div>`;
   el.appendChild(w);
   const svg=w.querySelector('#nn-svg'),NS='http://www.w3.org/2000/svg';
+  const comment=w.querySelector('#nn-comment');
+  const stepComments=[
+    `Entrée : le token "échecs" arrive converti en nombres`,
+    `Couche 1 : premiers calculs, détection de formes simples`,
+    `Couche 2 : combinaisons plus abstraites`,
+    `Couche 3 : concepts de haut niveau se forment`,
+    `Sortie : la prédiction est prête : le prochain token probable`,
+  ];
   const layers=[{x:65,nodes:[{y:55},{y:100},{y:145}]},{x:205,nodes:[{y:45},{y:80},{y:115},{y:150}]},{x:345,nodes:[{y:45},{y:80},{y:115},{y:150}]},{x:485,nodes:[{y:55},{y:100},{y:145}]},{x:625,nodes:[{y:75},{y:100},{y:125}]}];
   const lLabels=['Entrée','Couche 1','Couche 2','Couche 3','Sortie'];
   const allNodes=[],allEdges=[];
@@ -799,15 +903,145 @@ function buildNeuralNet(el){
     if(anim)return;anim=true;this.disabled=true;
     allNodes.forEach(n=>{n.el.setAttribute('fill','rgba(17,34,68,.9)');n.el.setAttribute('stroke','rgba(200,212,232,.2)');});
     allEdges.forEach(e=>{e.el.setAttribute('stroke','rgba(200,212,232,.07)');e.el.setAttribute('stroke-width','.8');});
+    comment.style.opacity='0';
     let delay=0;
     lColors.forEach((col,l)=>{
       const d=delay;
+      setTimeout(()=>{comment.style.opacity='0';setTimeout(()=>{comment.textContent=stepComments[l];comment.style.opacity='1';},150);},d);
       allNodes.filter(n=>n.layer===l).forEach((n,i)=>setTimeout(()=>{n.el.setAttribute('fill',col+'33');n.el.setAttribute('stroke',col);n.el.setAttribute('stroke-width','2');},d+i*50));
       allEdges.filter(e=>e.layer===l).forEach((e,i)=>setTimeout(()=>{e.el.setAttribute('stroke',col);e.el.setAttribute('stroke-width','1.2');e.el.setAttribute('opacity','.55');},d+180+i*6));
-      delay+=400;
+      delay+=1200;
     });
     setTimeout(()=>{anim=false;this.disabled=false;this.textContent='↺ Rejouer';},delay+300);
   };
+}
+
+// ── ENERGY VISUALIZATION ──
+function buildEnergyViz(el){
+  const items=[
+    {
+      id:'google',
+      q:`À votre avis, chercher quelque chose sur Google, c'est combien d'énergie ?`,
+      opts:[`Moins d'une minute d'ampoule LED`,`1 heure d'ampoule LED`,`Faire tourner un lave-linge`],
+      correct:0,
+      icon:'🔍',
+      label:'Recherche Google',
+      sub:'0,3 Wh',
+      equiv:'≈ 2 minutes d\'ampoule LED (7W)',
+      pct:2,
+      color:'var(--teal)',
+      colorRgb:'0,212,180',
+      reveal:`Oui : 0,3 Wh, c'est très peu. Google a massivement optimisé ses datacenters.`
+    },
+    {
+      id:'text',
+      q:`Et une requête à une IA de texte (comme ChatGPT ou Claude) ?`,
+      opts:[`Pareil que Google`,`Entre 10 et 30 fois plus que Google`,`100 fois plus que Google`],
+      correct:1,
+      icon:'💬',
+      label:'Requête IA · texte',
+      sub:'3 à 10 Wh',
+      equiv:'≈ 5 à 16 heures d\'ampoule LED',
+      pct:20,
+      color:'var(--amber)',
+      colorRgb:'245,166,35',
+      reveal:`Entre 3 et 10 Wh selon le modèle et la longueur. Générer du texte mot par mot coûte bien plus qu'une recherche par mots-clés.`
+    },
+    {
+      id:'image',
+      q:`Générer une image avec une IA (comme Midjourney ou DALL-E) ?`,
+      opts:[`Pareil qu'une requête texte`,`5 à 10 fois plus qu'une requête texte`,`Pareil qu'une recherche Google`],
+      correct:1,
+      icon:'🎨',
+      label:'Génération d\'image IA',
+      sub:'50 à 200 Wh',
+      equiv:'≈ 1 à 3 km en voiture électrique',
+      pct:55,
+      color:'var(--rose)',
+      colorRgb:'255,107,138',
+      reveal:`Générer une image de haute qualité peut consommer 50 à 200 Wh : beaucoup plus coûteux que du texte, car des milliers d'itérations de calcul sont nécessaires pour construire l'image pixel par pixel.`
+    },
+    {
+      id:'train',
+      q:`Entraîner GPT-3 (une fois, pour tout le monde) : combien de à combien de vols Paris–New York ?`,
+      opts:[`5 vols`,`500 vols aller-retour`,`50 000 vols`],
+      correct:1,
+      icon:'✈️',
+      label:'Entraîner GPT-3',
+      sub:'502 t CO₂',
+      equiv:'≈ 500 vols A/R Paris–New York',
+      pct:90,
+      color:'var(--violet)',
+      colorRgb:'168,85,247',
+      reveal:`502 tonnes de CO₂ pour un seul entraînement. C'est un coût unique, et les modèles sont ré-entraînés régulièrement. Sans compter l'eau de refroidissement des serveurs, invisible dans les chiffres.`
+    },
+  ];
+
+  const w=document.createElement('div');
+  w.style.cssText='background:rgba(8,14,32,.88);border:1px solid rgba(0,212,180,.18);border-radius:5px;padding:1.4rem;margin:1.5rem 0;';
+  w.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--teal);letter-spacing:.15em;text-transform:uppercase;margin-bottom:1rem;">⚡ Quelle empreinte énergétique ?</div>
+    <div id="eviz-steps"></div>
+    <div id="eviz-bars" style="display:none;margin-top:1.2rem;">
+      <div style="font-family:var(--font-mono);font-size:.6rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.8rem;">Comparatif (échelle relative)</div>
+      <div id="eviz-bar-list"></div>
+      <p style="font-size:.82rem;color:var(--dim);margin-top:.9rem;line-height:1.65;">Ce n'est pas une raison d'arrêter. C'est une raison d'utiliser <em style="color:var(--silver)">à bon escient</em>, comme l'eau, comme l'électricité, comme n'importe quelle ressource dont le coût est réel mais invisible.</p>
+    </div>`;
+  el.appendChild(w);
+
+  const stepsEl=w.querySelector('#eviz-steps');
+  const barsEl=w.querySelector('#eviz-bars');
+  const barListEl=w.querySelector('#eviz-bar-list');
+  let answered=0;
+
+  items.forEach((item,idx)=>{
+    const step=document.createElement('div');
+    step.id='eviz-step-'+idx;
+    step.style.cssText=`border:1px solid rgba(${item.colorRgb},.22);border-radius:4px;padding:1rem 1.1rem;margin-bottom:.8rem;background:rgba(${item.colorRgb},.04);`;
+    step.innerHTML=`
+      <div style="font-size:.95rem;color:var(--silver);font-weight:600;margin-bottom:.7rem;line-height:1.5;">${item.icon} ${item.q}</div>
+      <div class="eviz-opts-${idx}" style="display:flex;flex-direction:column;gap:.4rem;"></div>
+      <div class="eviz-fb-${idx}" style="display:none;margin-top:.7rem;padding:.6rem .9rem;border-radius:3px;font-size:.88rem;line-height:1.65;"></div>`;
+    stepsEl.appendChild(step);
+
+    const optsEl=step.querySelector(`.eviz-opts-${idx}`);
+    const fbEl=step.querySelector(`.eviz-fb-${idx}`);
+    let done=false;
+
+    item.opts.forEach((opt,oi)=>{
+      const b=document.createElement('button');
+      b.className='option-btn';
+      b.textContent=opt;
+      b.onclick=()=>{
+        if(done)return; done=true;
+        const correct=oi===item.correct;
+        optsEl.querySelectorAll('.option-btn').forEach((bb,j)=>{
+          bb.classList.add(j===oi?(correct?'correct':'wrong'):'disabled');
+        });
+        fbEl.style.display='block';
+        fbEl.style.cssText=`display:block;margin-top:.7rem;padding:.6rem .9rem;border-radius:3px;font-size:.88rem;line-height:1.65;background:rgba(${item.colorRgb},.08);border:1px solid rgba(${item.colorRgb},.3);color:var(--silver);`;
+        fbEl.innerHTML=`<strong style="color:var(--silver);">${item.icon} ${item.sub}</strong> · ${item.equiv}<br><span style="color:var(--dim);font-size:.82rem;">${item.reveal}</span>`;
+        if(correct) addCrystals(1);
+        answered++;
+        if(answered===items.length){
+          setTimeout(()=>{
+            barsEl.style.display='block';
+            items.forEach((it,i)=>{
+              const row=document.createElement('div');
+              row.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:8px;';
+              row.innerHTML=`<div style="width:16px;text-align:center;font-size:14px;">${it.icon}</div>
+                <div style="width:160px;flex-shrink:0;"><div style="font-size:.78rem;font-weight:500;color:var(--silver);">${it.label}</div><div style="font-size:.7rem;color:var(--dim);">${it.sub}</div></div>
+                <div style="flex:1;background:rgba(200,212,232,.08);border-radius:3px;height:18px;overflow:hidden;"><div id="ebar-${i}" style="height:100%;width:0%;background:${it.color};border-radius:3px;transition:width 1s ${i*.15}s cubic-bezier(.4,0,.2,1);"></div></div>`;
+              barListEl.appendChild(row);
+            });
+            requestAnimationFrame(()=>requestAnimationFrame(()=>{
+              items.forEach((_,i)=>{ document.getElementById('ebar-'+i).style.width=items[i].pct+'%'; });
+            }));
+          },400);
+        }
+      };
+      optsEl.appendChild(b);
+    });
+  });
 }
 
 // ══════════════════════════════════════
@@ -819,15 +1053,69 @@ const nodes={
 0:(el)=>{
   el.innerHTML=`<div class="intro-wrap">
     <div class="big-title">L'Odyssée de l'Intelligence</div>
-    <div class="sub">Une aventure immersive · Voyagez dans le temps en famille</div>
-    <img src="image1.png" alt="L'Odyssée de l'Intelligence" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.15);display:block;"/>
-    <p class="lead">Vous allez traverser <strong>6 époques</strong> de l'histoire de l'intelligence artificielle. À chaque étape : une <em>porte scellée</em> à déverrouiller, des <em>énigmes</em> à résoudre, et des <em>salles secrètes</em> à découvrir.<br><br>
-    Deux types de récompenses vous attendent : les <span style="color:var(--amber-glow)">💎 Cristaux de Lucidité</span> (bonne réponse) et les <span style="color:var(--gold)">✦ Cristaux d'Or</span> (passage secret).</p>
+    <div class="sub">Un voyage en famille · De 1950 à aujourd'hui</div>
+
+    <div id="intro-crystals" style="display:flex;justify-content:center;gap:.5rem;margin:1.2rem 0 1.8rem;flex-wrap:wrap;"></div>
+
+    <p class="lead" style="margin-bottom:1.4rem;">Ce voyage vous emmène à travers <strong>7 époques clés</strong> de l'histoire de l'IA. À chaque étape : une question à débattre, une histoire à découvrir, une énigme à résoudre.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7rem;margin:1.2rem 0 1.6rem;text-align:left;">
+      <div style="background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.2);border-radius:5px;padding:.85rem 1rem;">
+        <div style="font-size:1.2rem;margin-bottom:.3rem;">🕰</div>
+        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.3rem;">Durée</div>
+        <div style="font-size:.9rem;color:var(--silver);line-height:1.6;"><strong style="color:var(--amber-glow);">30 à 45 min</strong><br>selon vos discussions</div>
+      </div>
+      <div style="background:rgba(0,212,180,.07);border:1px solid rgba(0,212,180,.2);border-radius:5px;padding:.85rem 1rem;">
+        <div style="font-size:1.2rem;margin-bottom:.3rem;">👨‍👩‍👧‍👦</div>
+        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--teal);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.3rem;">Format</div>
+        <div style="font-size:.9rem;color:var(--silver);line-height:1.6;">En famille<br>ou en groupe</div>
+      </div>
+      <div style="background:rgba(168,85,247,.07);border:1px solid rgba(168,85,247,.2);border-radius:5px;padding:.85rem 1rem;">
+        <div style="font-size:1.2rem;margin-bottom:.3rem;">💎</div>
+        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--violet);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.3rem;">Récompenses</div>
+        <div style="font-size:.9rem;color:var(--silver);line-height:1.6;">Cristaux &amp; passages<br>secrets à débloquer</div>
+      </div>
+    </div>
+
+    <p class="lead" style="font-size:.95rem;color:#a0b0c8;margin-bottom:1.6rem;">Ces outils vont continuer d'évoluer. Les comprendre ensemble, c'est la meilleure façon de les accompagner, de les questionner, et de rester aux commandes. Ce voyage n'a pas de bonne ou mauvaise réponse : il a des <em style="color:var(--teal)">conversations</em>.</p>
   </div>`;
+
+  // Animated crystals
+  const crystalEl=el.querySelector('#intro-crystals');
+  const labels=['1950','1970','1997','2016','2022','2024','∞'];
+  const colors=['#f5a623','#00d4b4','#88eeff','#a855f7','#00d4b4','#f5a623','#ffd700'];
+  labels.forEach((lbl,i)=>{
+    const dot=document.createElement('div');
+    dot.style.cssText=`display:flex;flex-direction:column;align-items:center;gap:.3rem;opacity:0;transform:translateY(8px);transition:opacity .4s ${i*.1}s,transform .4s ${i*.1}s;`;
+    dot.innerHTML=`<div style="width:10px;height:10px;border-radius:50%;background:${colors[i]};box-shadow:0 0 10px ${colors[i]}88;"></div>
+      <span style="font-family:var(--font-mono);font-size:.55rem;color:${colors[i]};letter-spacing:.08em;">${lbl}</span>`;
+    crystalEl.appendChild(dot);
+    setTimeout(()=>{dot.style.opacity='1';dot.style.transform='translateY(0)';},100+i*100);
+  });
+
+  // Floating crystals animation
+  const floatWrap=document.createElement('div');
+  floatWrap.style.cssText='position:relative;height:60px;margin:.5rem 0 1.2rem;overflow:hidden;';
+  el.querySelector('.intro-wrap').insertBefore(floatWrap, el.querySelector('.intro-wrap').children[3]);
+  for(let i=0;i<18;i++){
+    const c=document.createElement('div');
+    const isGold=Math.random()>.7;
+    const size=6+Math.random()*8;
+    const left=Math.random()*95;
+    const delay=Math.random()*3;
+    const dur=2.5+Math.random()*2;
+    c.style.cssText=`position:absolute;left:${left}%;top:${20+Math.random()*40}%;width:${size}px;height:${size}px;border-radius:50%;background:${isGold?'#ffd700':'#f5a623'};opacity:0;animation:floatCrystal ${dur}s ${delay}s ease-in-out infinite;`;
+    floatWrap.appendChild(c);
+  }
+  if(!document.getElementById('float-style')){
+    const st=document.createElement('style');st.id='float-style';
+    st.textContent='@keyframes floatCrystal{0%{opacity:0;transform:translateY(0) scale(1);}30%{opacity:.7;}70%{opacity:.4;}100%{opacity:0;transform:translateY(-40px) scale(.4);}}';
+    document.head.appendChild(st);
+  }
   buildPause(el,
     `Avant de démarrer les machines, une question pour vous tous : quelle définition donneriez-vous d'une intelligence artificielle générative ?`,
-    `Chaque membre donne sa définition en une phrase — sans chercher à avoir raison. Un perroquet qui répète des phrases humaines comprend-il ce qu'il dit ? Une IA générative, c'est-il la même chose ? Notez vos réponses : vous pourrez les comparer en fin d'aventure.`,
-    `Une IA générative est un programme entraîné sur des milliards d'exemples (textes, images, sons) pour produire de nouveaux contenus qui ressemblent à ce qu'il a appris. Elle ne "crée" pas au sens humain : elle calcule ce qui est le plus vraisemblable selon ses données. Avez-vous trouvé quelque chose d'approchant ?`
+    ``,
+    `Chaque membre donne sa définition en une phrase, sans chercher à avoir raison. Un perroquet qui répète des phrases humaines comprend-il ce qu'il dit ? Une IA générative, c'est-il la même chose ? Notez vos réponses : vous pourrez les comparer en fin d'aventure.<br><br>Une IA générative est un programme entraîné sur des milliards d'exemples (textes, images, sons) pour produire de nouveaux contenus qui ressemblent à ce qu'il a appris. Elle ne "crée" pas au sens humain : elle calcule ce qui est le plus vraisemblable selon ses données. Avez-vous trouvé quelque chose d'approchant ?`
   );
   const b=document.createElement('button');b.className='nav-btn amber';b.style.cssText='display:block;margin:1.5rem auto 0;';
   b.innerHTML='Activer la Machine Temporelle →';b.onclick=()=>render(1);el.appendChild(b);
@@ -837,39 +1125,42 @@ const nodes={
 1:(el)=>{
   aH(el,badge('Époque I · Cambridge, 1950'));
   aH(el,scTitle('La Forge des Origines'));
-  aH(el,`<img src="image2.png" alt="La Forge des Origines — Cambridge 1950, Alan Turing" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(245,166,35,.15);display:block;"/>`);
+  aH(el,`<img src="image2.png" alt="La Forge des Origines · Cambridge 1950, Alan Turing" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(245,166,35,.15);display:block;"/>`);
 
-  const doorSvg=`<svg viewBox="0 0 820 200" style="width:100%;height:100%;">
-    <defs>
-      <linearGradient id="gf1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1a0a00"/><stop offset="100%" stop-color="#050810"/></linearGradient>
-      <radialGradient id="gfl" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="rgba(245,166,35,.15)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
-    </defs>
-    <rect width="820" height="200" fill="url(#gf1)"/>
-    <rect width="820" height="200" fill="url(#gfl)"/>
-    <rect x="290" y="30" width="240" height="140" rx="4" fill="rgba(245,166,35,.05)" stroke="rgba(245,166,35,.25)" stroke-width="1"/>
-    <rect x="315" y="50" width="190" height="100" rx="2" fill="rgba(245,166,35,.08)"/>
-    <text x="410" y="95" text-anchor="middle" font-family="Share Tech Mono" font-size="11" fill="#f5a623">CAN MACHINES THINK?</text>
-    <text x="410" y="115" text-anchor="middle" font-family="Share Tech Mono" font-size="8" fill="#6a7fa0">Computing Machinery and Intelligence</text>
-    <text x="410" y="130" text-anchor="middle" font-family="Share Tech Mono" font-size="8" fill="rgba(245,166,35,.5)">— Alan Turing, Mind, 1950</text>
-    ${Array.from({length:5},(_,i)=>`<circle cx="${80+i*140}" cy="${50+Math.sin(i)*40}" r="1.5" fill="#f5a623" opacity="${.2+i*.08}"/>`).join('')}
-  </svg>`;
+  // Zones cachées
+  const narrative=document.createElement('div'); narrative.style.display='none';
+  const challengeZone=document.createElement('div'); challengeZone.style.display='none';
+  const enigmaZone=document.createElement('div'); enigmaZone.style.display='none';
+  const navZone=document.createElement('div'); navZone.style.display='none';
 
   buildPause(el,
     `Avant d'entrer, une question vous arrête net : si une machine répondait à toutes vos questions exactement comme un humain, diriez-vous qu'elle est intelligente ?`,
-    `Un acteur joue un chirurgien de génie à la perfection — personne ne voit la différence. Est-il chirurgien pour autant ? Une calculatrice "fait" des mathématiques. Comprend-elle les chiffres ? Discutez : qu'est-ce qui distingue <em>imiter</em> de <em>comprendre</em> ?`,
-    `Turing lui-même ne pensait pas que son test prouvait quoi que ce soit sur la conscience ou la compréhension. Il disait que c'était un "jeu d'imitation". Imiter parfaitement quelque chose n'est pas la même chose que le comprendre. Une calculatrice "fait" des mathématiques sans comprendre ce que signifie un nombre.`
+    ``,
+    `Un acteur joue un chirurgien de génie à la perfection : personne ne voit la différence. Est-il chirurgien pour autant ? Une calculatrice "fait" des mathématiques. Comprend-elle les chiffres ? Discutez : qu'est-ce qui distingue imiter de comprendre ?<br><br>Turing lui-même ne pensait pas que son test prouvait quoi que ce soit sur la conscience ou la compréhension. Il disait que c'était un "jeu d'imitation". Imiter parfaitement quelque chose n'est pas la même chose que le comprendre. Une calculatrice "fait" des mathématiques sans comprendre ce que signifie un nombre.`,
+    120,
+    ()=>{ revealSection(narrative); }
   );
 
-  const door=buildSealedDoor(el, doorSvg, `Résolvez l'épreuve pour entrer dans le bureau de Turing`);
-  const journal=buildJournal(el,'turing','Alan Turing','Manchester, 1950',
+  // Étape 1 : narratif
+  narrative.innerHTML='';
+  narrative.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">Vous vous trouvez devant une porte massive gravée d'équations. Une lumière ambrée filtre sous le battant. Le verrou porte une inscription : <em>"Qu'est-ce qu'une machine pensante ?"</em></p>
+    <p class="scene-text">Quelqu'un a glissé un message sous la porte. <strong>Alan Turing</strong>, mathématicien britannique, vient de publier un texte qui va hanter le siècle. Il pose une question simple et impossible : <em>"Une machine peut-elle penser ?"</em> Pour y répondre, il propose un jeu d'imitation : si vous dialoguez avec X par écrit et ne pouvez pas distinguer X d'un humain, X peut-il être dit "intelligent" ?</p>
+    <p class="scene-text">Mais voilà ce que presque personne ne retiendra : Turing lui-même appelle ça un <em>jeu d'imitation</em>. Pas un test de conscience, pas une preuve d'intelligence. Imiter n'est pas comprendre. Une machine peut produire des réponses indiscernables de celles d'un humain sans avoir la moindre représentation du monde, sans savoir ce qu'est un arbre, une douleur, une intention. Ce détail, pourtant capital, sera oublié pendant des décennies.</p>
+  `));
+  const revealChallengeBtn=document.createElement('button');
+  revealChallengeBtn.className='pause-skip-btn';
+  revealChallengeBtn.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;';
+  revealChallengeBtn.textContent='Continuer →';
+  revealChallengeBtn.onclick=()=>{revealChallengeBtn.style.display='none';revealSection(challengeZone);};
+  narrative.appendChild(revealChallengeBtn);
+  el.appendChild(narrative);
+
+  // Étape 2 : question
+  const journal=buildJournal(challengeZone,'turing','Alan Turing','Manchester, 1950',
     `Je ne cherche pas à créer une machine consciente. Je cherche à construire une machine qui <em>imite</em> la pensée, ce qui est déjà vertigineux. La vraie question n'est pas "peut-elle penser ?" mais "peut-on jamais répondre à cette question ?" Peut-être que l'intelligence n'est pas un état, mais un processus. Et si c'est un processus, rien n'interdit qu'une machine le réalise.`);
-
-  aH(el,scTxt(`Vous vous trouvez devant une porte massive gravée d'équations. Une lumière ambrée filtre sous le battant. Le verrou porte une inscription : <em>"Qu'est-ce qu'une machine pensante ?"</em>`));
-  aH(el,scTxt(`Quelqu'un a glissé un message sous la porte. <strong>Alan Turing</strong>, mathématicien britannique, vient de publier un texte qui va hanter le siècle. Il pose une question simple et impossible : <em>"Une machine peut-elle penser ?"</em> Pour y répondre, il propose un jeu d'imitation : si vous dialoguez avec X par écrit et ne pouvez pas distinguer X d'un humain, X peut-il être dit "intelligent" ?`));
-  aH(el,scTxt(`Mais voilà ce que presque personne ne retiendra : Turing lui-même appelle ça un <em>jeu d'imitation</em>. Pas un test de conscience, pas une preuve d'intelligence. Imiter n'est pas comprendre. Une machine peut produire des réponses indiscernables de celles d'un humain sans avoir la moindre représentation du monde — sans savoir ce qu'est un arbre, une douleur, une intention. Ce détail, pourtant capital, sera oublié pendant des décennies.`));
-
-  challenge(el,{
-    question:`Vous trouvez une inscription gravée dans la pierre à côté de la porte :<br><em>"En 2023, GPT-4 réussit le test de Turing dans plusieurs expériences : des juges humains ne parviennent pas à le distinguer d'un humain."</em><br>Qu'est-ce que cela prouve réellement ?`,
+  challenge(challengeZone,{
+    question:`Vous trouvez une inscription gravée dans la pierre :<br><em>"En 2023, GPT-4 réussit le test de Turing dans plusieurs expériences : des juges humains ne parviennent pas à le distinguer d'un humain."</em><br>Qu'est-ce que cela prouve réellement ?`,
     options:[
       {text:`Que GPT-4 est désormais conscient et intelligent au sens humain du terme.`,correct:false},
       {text:`Que GPT-4 est un excellent imitateur de la production textuelle humaine : impressionnant et utile, mais distinct de la compréhension ou de la conscience.`,correct:true},
@@ -881,215 +1172,112 @@ const nodes={
       `Il y a du vrai : Turing lui-même disait que c'était un "jeu", pas une mesure définitive. Mais le résultat indique un niveau de maîtrise linguistique sans précédent. Le problème est dans l'interprétation, pas dans l'expérience.`,
     ],
     crystalOnCorrect:1,
-    door, journal,
+    journal,
     onNeutral:()=>{
-      const secret=buildSecretRoom(el,'turing-bonus',
+      const secret=buildSecretRoom(challengeZone,'turing-bonus',
         `<p>Vous avez choisi la réponse philosophique et vous avez trouvé un passage secret ! 🎉<br><br>
-        <strong>La vraie limite du test de Turing :</strong> en 1980, le philosophe John Searle imagina la "Chambre Chinoise", une expérience de pensée dévastatrice. Un homme enfermé dans une pièce reçoit des symboles chinois et suit des règles pour y répondre. De l'extérieur, il semble comprendre le chinois, mais il ne comprend rien. Cette analogie est-elle valide pour les IA ? Le débat fait rage encore aujourd'hui.</p>`);
+        <strong>La vraie limite du test de Turing :</strong> en 1980, le philosophe John Searle imagina la "Chambre Chinoise". Un homme enfermé dans une pièce reçoit des symboles chinois et suit des règles pour y répondre. De l'extérieur, il semble comprendre le chinois, mais il ne comprend rien. Cette analogie est-elle valide pour les IA ? Le débat fait rage encore aujourd'hui.</p>`);
       secret.classList.add('show');
       addGold(1);
       secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
-      if(door && journal){unlockDoor(door,()=>journal.classList.add('show'));}
     },
+    onAnswered:()=>revealSection(enigmaZone),
   });
+  el.appendChild(challengeZone);
 
-  aH(el,sep());
-  // ENIGMA 1
-  buildMorseEnigma(el, ()=>{
-    const secret=buildSecretRoom(el,'turing-enigma',
+  // Étape 3 : énigme
+  aH(enigmaZone, sep());
+  buildMorseEnigma(enigmaZone, ()=>{
+    const secret=buildSecretRoom(enigmaZone,'turing-enigma',
       `<p>Vous venez de décoder ce message et avez compris quelque chose d'essentiel : <strong>l'IA ne reçoit jamais "du texte".</strong> Elle reçoit des séquences de nombres. Le sens que vous y mettez, c'est vous qui le construisez, pas elle.</p>`);
     secret.classList.add('show');
     addGold(1);
     secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
+    revealSection(navZone);
   });
+  // Bouton passer l'énigme (grisé)
+  const skipEnigma1=document.createElement('button');
+  skipEnigma1.className='pause-skip-btn';
+  skipEnigma1.style.cssText='margin-top:.8rem;display:block;margin-left:auto;margin-right:auto;opacity:.45;';
+  skipEnigma1.textContent='Passer l\'énigme';
+  skipEnigma1.onclick=()=>revealSection(navZone);
+  enigmaZone.appendChild(skipEnigma1);
+  el.appendChild(enigmaZone);
 
-  aH(el,sep());
-  navBtn(el,'Traverser vers 1970',2);
+  // Étape 4 : navigation
+  aH(navZone, sep());
+  navBtn(navZone,'Traverser vers 1970',2);
+  el.appendChild(navZone);
 },
 
 // ── 2. LE LABYRINTHE DES DONNÉES ──
 2:(el)=>{
-  aH(el,badge('Époque II · 1970 — Premier Hiver de l\'IA'));
+  aH(el,badge('Époque II · 1970 · Premier Hiver de l\'IA'));
   aH(el,scTitle('Le Labyrinthe des Données'));
-  aH(el,`<img src="image3.png" alt="Le Labyrinthe des Données — Hiver de l'IA, 1970" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.15);display:block;"/>`);
+  aH(el,`<img src="image3.png" alt="Le Labyrinthe des Données · Hiver de l'IA, 1970" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.15);display:block;"/>`);
 
-  const doorSvg=`<svg viewBox="0 0 820 200" style="width:100%;height:100%;">
-    <rect width="820" height="200" fill="#050810"/>
-    ${Array.from({length:8},(_,i)=>`<rect x="${70+i*94}" y="${22+i%3*32}" width="78" height="40" rx="2" fill="rgba(0,212,180,.04)" stroke="rgba(0,212,180,${.07+i*.02})" stroke-width=".8"/>
-    <text x="${109+i*94}" y="${46+i%3*32}" text-anchor="middle" font-family="Share Tech Mono" font-size="7" fill="rgba(0,212,180,.4)">DATA·${1000+i*1337}</text>`).join('')}
-    <text x="410" y="175" text-anchor="middle" font-family="Share Tech Mono" font-size="9" fill="rgba(0,212,180,.3)" letter-spacing=".1em">BIAIS · DONNÉES · HIVER · APPRENTISSAGE</text>
-    <line x1="60" y1="140" x2="760" y2="140" stroke="rgba(0,212,180,.08)" stroke-width=".5" stroke-dasharray="4,3"/>
-  </svg>`;
+  const narrative2=document.createElement('div'); narrative2.style.display='none';
+  const challengeZone2=document.createElement('div'); challengeZone2.style.display='none';
+  const navZone2=document.createElement('div'); navZone2.style.display='none';
 
   buildPause(el,
     `Le froid vous saisit. Sur le tableau noir, quelqu'un a griffonné une question sans réponse : si une machine apprend en observant le passé, va-t-elle reproduire les inégalités de ce passé, ou les corriger ?`,
-    `Imaginez un enfant qui grandirait en lisant <em>uniquement</em> des journaux des années 1960. Comment verrait-il les femmes, les minorités, le monde ? Une IA qui apprend sur les données du passé, c'est exactement ça. Qu'est-ce que cela implique pour les décisions qu'elle va prendre ?`,
-    `Une IA ne juge pas ses données. Elle optimise pour reproduire ce qu'elle observe. Si les données historiques montrent que les ingénieurs embauchés étaient à 85 % des hommes, la machine en déduit que "ingénieur" et "homme" sont corrélés positivement. Elle ne corrige pas le passé : elle l'amplifie.`
+    ``,
+    `Imaginez un enfant qui grandirait en lisant uniquement des journaux des années 1960. Comment verrait-il les femmes, les minorités, le monde ? Une IA qui apprend sur les données du passé, c'est exactement ça.<br><br>Une IA ne juge pas ses données. Elle optimise pour reproduire ce qu'elle observe. Si vous demandez à une IA de générer une image de "médecin", elle produira très probablement un homme d'âge moyen, en blouse blanche, avec des lunettes. Pas parce que quelqu'un le lui a dit, mais parce que c'est ce que ses données d'entraînement montrent le plus souvent. Elle ne corrige pas les représentations du passé : elle les amplifie.`,
+    120,
+    ()=>revealSection(narrative2)
   );
 
-  const door=buildSealedDoor(el, doorSvg, `Résolvez l'épreuve pour explorer le labyrinthe`);
-  const journal=buildJournal(el,'minsky','Marvin Minsky','MIT, 1969',
-    `Nous avons résolu des problèmes que nous pensions impossibles. Mais nous sous-estimions l'écart entre jouer aux échecs et "penser". Ce qu'on appelle intelligence humaine est un enchevêtrement de milliers de compétences que personne ne sait encore formaliser. Nous avons construit des fusées capables d'aller sur la Lune, mais nous ne savons toujours pas expliquer comment un enfant de 3 ans reconnaît un visage.`);
+  narrative2.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">Le couloir dans lequel vous atterrissez est glacé. Des ordinateurs de la taille d'armoires ronronnent dans le noir. Sur un tableau, quelqu'un a écrit : <em>"Les promesses n'ont pas été tenues."</em></p>
+    <p class="scene-text">L'IA traverse son premier grand <strong>hiver</strong>. Les financements s'évaporent. Les chercheurs avaient résolu des problèmes simples et croyaient que le reste suivrait. Ils avaient oublié une chose fondamentale : une machine a besoin de <strong>données</strong>, des millions d'exemples, pour apprendre quoi que ce soit. Et si ces données contiennent des biais, elle les absorbe aussi.</p>
+    <p class="scene-text">En 2018, Amazon découvre que son outil de tri de CV, entraîné sur dix ans de recrutements passés, pénalise automatiquement les candidatures mentionnant des lycées de filles. Personne ne lui a appris à discriminer. Il a simplement constaté que les ingénieurs embauchés étaient, historiquement, surtout des hommes, et en a tiré une règle. Amazon abandonne l'outil. Les données n'étaient pas neutres : elles étaient un miroir d'inégalités passées, et la machine les avait amplifiées.</p>
+  `));
 
-  aH(el,scTxt(`Le couloir dans lequel vous atterrissez est glacé. Des ordinateurs de la taille d'armoires ronronnent dans le noir. Sur un tableau, quelqu'un a écrit : <em>"Les promesses n'ont pas été tenues."</em> Une porte entourée de fils électriques vous attend.`));
-  aH(el,scTxt(`L'IA traverse son premier grand <strong>hiver</strong>. Les financements s'évaporent. Les chercheurs avaient résolu des problèmes simples et croyaient que le reste suivrait. Ils avaient oublié une chose fondamentale : une machine a besoin de <strong>données</strong>, des millions d'exemples, pour apprendre quoi que ce soit. Et si ces données contiennent des biais, elle les absorbe aussi.`));
-  aH(el,scTxt(`En 2018, Amazon découvre que son outil de tri de CV, entraîné sur dix ans de recrutements passés, pénalise automatiquement les candidatures mentionnant des lycées de filles. Personne ne lui a appris à discriminer. Il a simplement constaté que les ingénieurs embauchés étaient, historiquement, surtout des hommes — et en a tiré une règle. Amazon abandonne l'outil. Les données n'étaient pas neutres : elles étaient un miroir d'inégalités passées, et la machine les avait amplifiées.`));
-
-  // ── CV BIAS VISUALIZATION ──
   (()=>{
     const wrap=document.createElement('div');
     wrap.style.cssText='background:rgba(8,14,32,.88);border:1px solid rgba(168,85,247,.22);border-radius:5px;padding:1.3rem;margin:1.5rem 0;';
     wrap.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--violet);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.7rem;">📊 Ce que l'algorithme "voit" dans les données</div>
-      <p style="font-size:.88rem;color:var(--dim);margin-bottom:.9rem;">Chaque point = un ingénieur embauché sur 10 ans. L'algorithme apprend depuis ces données. Cliquez sur <strong style="color:var(--teal)">Charger les données</strong> pour voir ce qu'il absorbe.</p>
+      <p style="font-size:.88rem;color:var(--dim);margin-bottom:.9rem;">Chaque point = un ingénieur embauché sur 10 ans. Cliquez sur <strong style="color:var(--teal)">Charger les données</strong> pour voir ce qu'il absorbe.</p>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem;">
         <button id="cv-load" style="padding:.45rem 1rem;background:rgba(0,212,180,.1);border:1px solid rgba(0,212,180,.3);border-radius:2px;color:var(--teal);font-family:var(--font-mono);font-size:.72rem;cursor:pointer;transition:all .2s;">▶ Charger les données</button>
         <button id="cv-reset" style="padding:.45rem 1rem;background:rgba(106,127,160,.08);border:1px solid rgba(106,127,160,.2);border-radius:2px;color:var(--dim);font-family:var(--font-mono);font-size:.72rem;cursor:pointer;">↺ Réinitialiser</button>
       </div>
       <div style="display:flex;gap:1rem;margin-bottom:.6rem;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.7rem;color:#88aaff;">
-          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="rgba(100,140,255,.7)" stroke="rgba(100,140,255,.9)" stroke-width="1"/></svg> Homme embauché
-        </div>
-        <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.7rem;color:#ff9ec0;">
-          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="rgba(255,107,138,.7)" stroke="rgba(255,107,138,.9)" stroke-width="1"/></svg> Femme embauchée
-        </div>
-        <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.7rem;color:var(--dim);">
-          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="rgba(106,127,160,.3)" stroke="rgba(106,127,160,.5)" stroke-width="1"/></svg> Candidat·e rejeté·e
-        </div>
+        <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.7rem;color:#88aaff;"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="rgba(100,140,255,.7)" stroke="rgba(100,140,255,.9)" stroke-width="1"/></svg> Homme embauché</div>
+        <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.7rem;color:#ff9ec0;"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="rgba(255,107,138,.7)" stroke="rgba(255,107,138,.9)" stroke-width="1"/></svg> Femme embauchée</div>
+        <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.7rem;color:#ffaa44;"><svg width="14" height="12"><circle cx="6" cy="6" r="5" fill="rgba(255,170,68,.25)" stroke="rgba(255,170,68,.7)" stroke-width="1"/><line x1="3" y1="3" x2="9" y2="9" stroke="rgba(255,170,68,.9)" stroke-width="1.2"/><line x1="9" y1="3" x2="3" y2="9" stroke="rgba(255,170,68,.9)" stroke-width="1.2"/></svg> Femme écartée (biais)</div>
+        <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.7rem;color:var(--dim);"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="rgba(100,140,255,.12)" stroke="rgba(106,127,160,.4)" stroke-width="1"/></svg> Homme écarté (dossier faible)</div>
       </div>
       <canvas id="cv-canvas" width="760" height="200" style="width:100%;height:200px;border-radius:3px;background:rgba(5,8,16,.6);display:block;"></canvas>
       <div id="cv-stats" style="display:flex;gap:1.2rem;margin-top:.7rem;flex-wrap:wrap;"></div>
       <div id="cv-msg" style="display:none;margin-top:.9rem;padding:.7rem 1rem;background:rgba(255,107,138,.08);border:1px solid rgba(255,107,138,.25);border-radius:3px;font-size:.88rem;color:#ff8fa4;line-height:1.65;"></div>`;
-    el.appendChild(wrap);
-
-    const canvas=wrap.querySelector('#cv-canvas');
-    const ctx=canvas.getContext('2d');
-    const stats=wrap.querySelector('#cv-stats');
-    const msg=wrap.querySelector('#cv-msg');
-    let animId=null, dots=[], phase=0;
-
-    const W=760, H=200;
-    canvas.width=W; canvas.height=H;
-
-    function resetViz(){
-      if(animId){cancelAnimationFrame(animId);animId=null;}
-      dots=[];phase=0;ctx.clearRect(0,0,W,H);
-      stats.innerHTML='';msg.style.display='none';
-      wrap.querySelector('#cv-load').disabled=false;
-    }
-
-    function statPill(label,val,color){
-      return `<span style="font-family:var(--font-mono);font-size:.72rem;padding:.2rem .6rem;background:${color}22;border:1px solid ${color}55;border-radius:2px;color:${color};">${label} : <strong>${val}</strong></span>`;
-    }
-
-    function drawDots(){
-      ctx.clearRect(0,0,W,H);
-      // Draw grid lines
-      ctx.strokeStyle='rgba(200,212,232,.04)';ctx.lineWidth=.5;
-      for(let x=0;x<W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
-      for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
-
-      dots.forEach(d=>{
-        if(!d.visible) return;
-        const alpha=d.alpha||1;
-        ctx.beginPath();
-        ctx.arc(d.x,d.y,d.r||4.5,0,Math.PI*2);
-        if(d.type==='m'){
-          ctx.fillStyle=`rgba(100,140,255,${.65*alpha})`;
-          ctx.strokeStyle=`rgba(130,170,255,${.9*alpha})`;
-        } else if(d.type==='f'){
-          ctx.fillStyle=`rgba(255,107,138,${.65*alpha})`;
-          ctx.strokeStyle=`rgba(255,140,160,${.9*alpha})`;
-        } else {
-          ctx.fillStyle=`rgba(106,127,160,${.25*alpha})`;
-          ctx.strokeStyle=`rgba(106,127,160,${.45*alpha})`;
-        }
-        ctx.lineWidth=1;
-        ctx.fill();ctx.stroke();
-        // pulse ring for new dots
-        if(d.pulse>0){
-          ctx.beginPath();ctx.arc(d.x,d.y,d.r+d.pulse*6,0,Math.PI*2);
-          ctx.strokeStyle=d.type==='m'?`rgba(100,140,255,${.4*(1-d.pulse)})`:`rgba(255,107,138,${.4*(1-d.pulse)})`;
-          ctx.lineWidth=1;ctx.stroke();
-          d.pulse=Math.max(0,d.pulse-.08);
-        }
-      });
-    }
-
-    function spawnDots(){
-      // Phase 1: load historical data - 85% men, 15% women (historical bias)
-      const total=120;
-      const men=Math.round(total*.85), women=total-men;
-      let count=0;
-      const interval=setInterval(()=>{
-        if(count>=total){
-          clearInterval(interval);
-          setTimeout(showBias,800);
-          return;
-        }
-        const isMale=count<men;
-        const x=30+Math.random()*(W-60);
-        const y=20+Math.random()*(H-40);
-        dots.push({x,y,type:isMale?'m':'f',visible:true,alpha:0,r:4.5,pulse:1});
-        count++;
-        // fade in
-        const d=dots[dots.length-1];
-        let a=0;
-        const fi=setInterval(()=>{a+=.15;d.alpha=Math.min(1,a);if(a>=1)clearInterval(fi);},30);
-        drawDots();
-        updateStats(count,men,women,count);
-      },28);
-    }
-
-    function updateStats(shown,men,women,total){
-      const pctM=Math.round((Math.min(shown,men)/Math.max(shown,1))*100);
-      const pctF=100-pctM;
-      stats.innerHTML=statPill('CV analysés',shown,'#c8d4e8')+
-        statPill('Hommes',`${Math.min(shown,men)} (${pctM}%)`, '#88aaff')+
-        statPill('Femmes',`${Math.max(0,shown-men)} (${pctF}%)`, '#ff9ec0');
-    }
-
-    function showBias(){
-      // Phase 2: algorithm "scores" — rejected candidates fade, then show what algo learns
-      msg.style.display='block';
-      msg.innerHTML=`⚠️ <strong>L'algorithme a appris :</strong> sur ${dots.length} embauches historiques, <strong style="color:#88aaff">85% étaient des hommes</strong>. Il va maintenant pondérer ses décisions en conséquence, même si les candidates femmes sont tout aussi qualifiées.<br><br>
-        Les points grisés ci-dessous représentent les candidat·e·s rejeté·e·s lors de la prochaine vague de recrutement : l'algorithme a déjà décidé avant de lire les compétences.`;
-
-      // Add rejected candidates — mostly women
-      setTimeout(()=>{
-        const newCandidates=60;
-        let c2=0;
-        const iv2=setInterval(()=>{
-          if(c2>=newCandidates){clearInterval(iv2);return;}
-          const rejectFemale=Math.random()<.72; // algorithm rejects 72% of women
-          const x=30+Math.random()*(W-60);
-          const y=20+Math.random()*(H-40);
-          dots.push({x,y,type:'rej',visible:true,alpha:0,r:3.5,pulse:.5,
-            _orig:rejectFemale?'f':'m'});
-          const d=dots[dots.length-1];
-          let a=0;
-          const fi=setInterval(()=>{a+=.12;d.alpha=Math.min(1,a);if(a>=1)clearInterval(fi);},35);
-          c2++;
-          drawDots();
-        },40);
-      },400);
-    }
-
-    // Animate loop
-    function loop(){
-      drawDots();
-      animId=requestAnimationFrame(loop);
-    }
-
-    wrap.querySelector('#cv-load').onclick=function(){
-      this.disabled=true;
-      loop();
-      spawnDots();
-    };
+    narrative2.appendChild(wrap);
+    const canvas=wrap.querySelector('#cv-canvas'),ctx=canvas.getContext('2d');
+    const stats=wrap.querySelector('#cv-stats'),msg=wrap.querySelector('#cv-msg');
+    let animId=null,dots=[];
+    const W=760,H=200; canvas.width=W;canvas.height=H;
+    function resetViz(){if(animId){cancelAnimationFrame(animId);animId=null;}dots=[];ctx.clearRect(0,0,W,H);stats.innerHTML='';msg.style.display='none';wrap.querySelector('#cv-load').disabled=false;}
+    function statPill(label,val,color){return `<span style="font-family:var(--font-mono);font-size:.72rem;padding:.2rem .6rem;background:${color}22;border:1px solid ${color}55;border-radius:2px;color:${color};">${label} : <strong>${val}</strong></span>`;}
+    function drawDots(){ctx.clearRect(0,0,W,H);ctx.strokeStyle='rgba(200,212,232,.04)';ctx.lineWidth=.5;for(let x=0;x<W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}dots.forEach(d=>{if(!d.visible)return;const alpha=d.alpha||1;ctx.beginPath();ctx.arc(d.x,d.y,d.r||4.5,0,Math.PI*2);if(d.type==='m'){ctx.fillStyle=`rgba(100,140,255,${.65*alpha})`;ctx.strokeStyle=`rgba(130,170,255,${.9*alpha})`;}else if(d.type==='f'){ctx.fillStyle=`rgba(255,107,138,${.65*alpha})`;ctx.strokeStyle=`rgba(255,140,160,${.9*alpha})`;}else if(d.type==='rej'&&d._orig==='f'){ctx.fillStyle=`rgba(255,170,68,${.3*alpha})`;ctx.strokeStyle=`rgba(255,170,68,${.8*alpha})`;}else{ctx.fillStyle=`rgba(100,140,255,${.12*alpha})`;ctx.strokeStyle=`rgba(106,127,160,${.4*alpha})`;}ctx.lineWidth=1;ctx.fill();ctx.stroke();if(d.type==='rej'&&d._orig==='f'){const r=d.r||3.5;ctx.beginPath();ctx.moveTo(d.x-r*.6,d.y-r*.6);ctx.lineTo(d.x+r*.6,d.y+r*.6);ctx.moveTo(d.x+r*.6,d.y-r*.6);ctx.lineTo(d.x-r*.6,d.y+r*.6);ctx.strokeStyle=`rgba(255,170,68,${.95*alpha})`;ctx.lineWidth=1.4;ctx.stroke();}if(d.pulse>0){ctx.beginPath();ctx.arc(d.x,d.y,d.r+d.pulse*6,0,Math.PI*2);ctx.strokeStyle=d.type==='m'?`rgba(100,140,255,${.4*(1-d.pulse)})`:`rgba(255,107,138,${.4*(1-d.pulse)})`;ctx.lineWidth=1;ctx.stroke();d.pulse=Math.max(0,d.pulse-.08);}});}
+    function spawnDots(){const total=120,men=Math.round(total*.85);let count=0;const interval=setInterval(()=>{if(count>=total){clearInterval(interval);setTimeout(showBias,800);return;}const isMale=count<men;const x=30+Math.random()*(W-60),y=20+Math.random()*(H-40);dots.push({x,y,type:isMale?'m':'f',visible:true,alpha:0,r:4.5,pulse:1});count++;const d=dots[dots.length-1];let a=0;const fi=setInterval(()=>{a+=.15;d.alpha=Math.min(1,a);if(a>=1)clearInterval(fi);},30);drawDots();const pctM=Math.round((Math.min(count,men)/Math.max(count,1))*100);stats.innerHTML=statPill('CV analysés',count,'#c8d4e8')+statPill('Hommes',`${Math.min(count,men)} (${pctM}%)`,'#88aaff')+statPill('Femmes',`${Math.max(0,count-men)} (${100-pctM}%)`,'#ff9ec0');},28);}
+    function showBias(){msg.style.display='block';msg.innerHTML=`⚠️ <strong>L'algorithme a appris :</strong> sur ${dots.length} embauches passées, <strong style="color:#88aaff">85 % étaient des hommes</strong>. Il fixe un seuil d'exigence plus élevé pour les femmes.<br><br><strong style="color:#ffaa44">Femmes écartées (×)</strong> : écartées malgré un dossier solide. <strong style="color:#88aaff">Hommes grisés</strong> : écartés pour dossier insuffisant.`;setTimeout(()=>{const newCandidates=60;let c2=0;const iv2=setInterval(()=>{if(c2>=newCandidates){clearInterval(iv2);return;}const rejectFemale=Math.random()<.72;const x=30+Math.random()*(W-60),y=20+Math.random()*(H-40);dots.push({x,y,type:'rej',visible:true,alpha:0,r:3.5,pulse:.5,_orig:rejectFemale?'f':'m'});const d=dots[dots.length-1];let a=0;const fi=setInterval(()=>{a+=.12;d.alpha=Math.min(1,a);if(a>=1)clearInterval(fi);},35);c2++;drawDots();},40);},400);}
+    function loop(){drawDots();animId=requestAnimationFrame(loop);}
+    wrap.querySelector('#cv-load').onclick=function(){this.disabled=true;loop();spawnDots();};
     wrap.querySelector('#cv-reset').onclick=resetViz;
   })();
 
-  challenge(el,{
-    question:`Une plaque métallique est fixée à la porte :<br><em>"Un algorithme de crédit est entraîné sur des données historiques. Les habitants de certains quartiers défavorisés avaient statistiquement plus de défauts de paiement, en partie à cause de discriminations à l'embauche. L'algorithme apprend cette corrélation."</em><br>Que va-t-il faire ?`,
+  const revBtn2=document.createElement('button');
+  revBtn2.className='pause-skip-btn'; revBtn2.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;';
+  revBtn2.textContent='Continuer →';
+  revBtn2.onclick=()=>{revBtn2.style.display='none';revealSection(challengeZone2);};
+  narrative2.appendChild(revBtn2);
+  el.appendChild(narrative2);
+
+  const journal2=buildJournal(challengeZone2,'minsky','Marvin Minsky','MIT, 1969',
+    `Nous avons résolu des problèmes que nous pensions impossibles. Mais nous sous-estimions l'écart entre jouer aux échecs et "penser". Ce qu'on appelle intelligence humaine est un enchevêtrement de milliers de compétences que personne ne sait encore formaliser. Nous avons construit des fusées capables d'aller sur la Lune, mais nous ne savons toujours pas expliquer comment un enfant de 3 ans reconnaît un visage.`);
+  challenge(challengeZone2,{
+    question:`<em>"Un algorithme de crédit est entraîné sur des données historiques. Les habitants de certains quartiers défavorisés avaient statistiquement plus de défauts de paiement, en partie à cause de discriminations à l'embauche. L'algorithme apprend cette corrélation."</em><br>Que va-t-il faire ?`,
     options:[
       {text:`Il sera juste : il se base sur des données réelles, pas des préjugés.`,correct:false},
       {text:`Il reproduira l'inégalité ; ces habitants se verront refuser davantage de crédits, renforçant leur désavantage.`,correct:true},
@@ -1100,61 +1288,48 @@ const nodes={
       `C'est la discrimination indirecte algorithmique. L'algorithme ne discrimine pas sur la race ; il utilise le code postal, corrélé avec ces facteurs. Le résultat est identique. Ce phénomène est documenté dans le crédit, l'assurance, la justice pénale (COMPAS, USA) et le recrutement.`,
       `Les données historiques restent utiles si elles ne sont pas biaisées. Le problème ici : elles encodent des inégalités structurelles comme si elles reflétaient des différences naturelles de fiabilité.`,
     ],
-    crystalOnCorrect:1,
-    door, journal,
+    crystalOnCorrect:1, journal:journal2,
+    onAnswered:()=>revealSection(navZone2),
   });
+  el.appendChild(challengeZone2);
 
-  aH(el,sep());
-  buildTokenVisualizer(el);
-  aH(el,scTxt(`Ce que vous venez de voir a un nom : un <strong>token</strong>. Et un token n'est pas un mot. Le mot "intelligence" peut devenir trois tokens : <em>"intel"</em>, <em>"lig"</em>, <em>"ence"</em>. "ChatGPT" en donne trois aussi. GPT-4 jongle avec environ 100 000 tokens différents — et aucun d'entre eux n'est jamais <em>compris</em>. Ce sont des identifiants numériques, convertis en vecteurs mathématiques. La machine ne lit pas. Elle calcule.`));
-
-  aH(el,sep());
-  buildPromptEnigma(el, ()=>{
-    const secret=buildSecretRoom(el,'prompt-secret',
-      `<p>Vous venez de construire la structure d'un prompt professionnel. Ce que vous avez découvert s'appelle le <strong>CIDE</strong> : Contexte, Instruction, Destinataire, Exemples. Les meilleurs ingénieurs de prompt ne font pas de magie : ils structurent.</p>`);
-    secret.classList.add('show');
-    addGold(1);
-    secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
-  });
-
-  aH(el,sep());
-  navBtn(el,'Voyager vers 1997',3);
+  aH(navZone2,sep());
+  navBtn(navZone2,'Voyager vers 1997',3);
+  el.appendChild(navZone2);
 },
 
 // ── 3. L'ARÈNE DE DEEP BLUE ──
 3:(el)=>{
   aH(el,badge('Époque III · New York, 1997'));
   aH(el,scTitle('L\'Arène de Deep Blue'));
-  aH(el,`<img src="image4.png" alt="L'Arène de Deep Blue — Kasparov contre Deep Blue, 1997" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
+  aH(el,`<img src="image4.png" alt="L'Arène de Deep Blue · Kasparov contre Deep Blue, 1997" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
 
-  const doorSvg=`<svg viewBox="0 0 820 200" style="width:100%;height:100%;">
-    <defs><linearGradient id="gdb" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000510"/><stop offset="100%" stop-color="#0a0020"/></linearGradient></defs>
-    <rect width="820" height="200" fill="url(#gdb)"/>
-    ${Array.from({length:8},(_,i)=>Array.from({length:4},(_,j)=>`<rect x="${255+i*40}" y="${28+j*40}" width="38" height="38" fill="${(i+j)%2===0?'rgba(200,212,232,.06)':'rgba(17,34,68,.45)'}" stroke="rgba(200,212,232,.08)" stroke-width=".5"/>`).join('')).join('')}
-    <text x="120" y="95" text-anchor="middle" font-family="Share Tech Mono" font-size="10" fill="#6a7fa0">KASPAROV</text>
-    <text x="120" y="112" font-family="Share Tech Mono" font-size="7" fill="rgba(106,127,160,.5)" text-anchor="middle">Champion du monde</text>
-    <text x="680" y="88" text-anchor="middle" font-family="Share Tech Mono" font-size="10" fill="#00d4b4">DEEP BLUE</text>
-    <text x="680" y="105" text-anchor="middle" font-family="Share Tech Mono" font-size="7" fill="rgba(0,212,180,.5)">200 000 000 pos/sec</text>
-    <line x1="160" y1="100" x2="250" y2="100" stroke="rgba(200,212,232,.1)" stroke-width=".5" stroke-dasharray="3,3"/>
-    <line x1="650" y1="100" x2="720" y2="100" stroke="rgba(0,212,180,.15)" stroke-width=".5" stroke-dasharray="3,3"/>
-  </svg>`;
+  const narr3=document.createElement('div'); narr3.style.display='none';
+  const ch3=document.createElement('div'); ch3.style.display='none';
+  const en3=document.createElement('div'); en3.style.display='none';
+  const nav3=document.createElement('div'); nav3.style.display='none';
 
   buildPause(el,
     `La foule retient son souffle. Avant de rejoindre les gradins, une question s'impose : si une machine bat le meilleur joueur d'échecs au monde, peut-on dire qu'elle est plus intelligente que lui ?`,
-    `Une calculatrice bat n'importe quel humain en multiplication. La diriez-vous intelligente ? Un GPS vous emmène au bon endroit sans jamais avoir voyagé. Qu'est-ce qui distingue <em>calculer très vite</em> de <em>penser</em> ? Qu'est-ce que l'intelligence, selon vous ?`,
-    `Deep Blue calculait 200 millions de positions par seconde, mais elle ne savait pas ce qu'était un jeu, un adversaire, ou une victoire. Elle appliquait des règles avec une puissance inhumaine. Kasparov, lui, jouait. Ce n'est pas la même chose. L'intelligence, c'est peut-être la capacité à s'adapter à des règles qu'on ne connaît pas encore.`
+    ``,
+    `Une calculatrice bat n'importe quel humain en multiplication. La diriez-vous intelligente ? Un GPS vous emmène au bon endroit sans jamais avoir voyagé. Qu'est-ce qui distingue calculer très vite de penser ?<br><br>Deep Blue calculait 200 millions de positions par seconde, mais elle ne savait pas ce qu'était un jeu, un adversaire, ou une victoire. Elle appliquait des règles avec une puissance inhumaine. Kasparov, lui, jouait. Ce n'est pas la même chose.`,
+    120, ()=>revealSection(narr3)
   );
 
-  const door=buildSealedDoor(el, doorSvg, `Résolvez l'épreuve pour entrer dans l'arène`);
-  const journal=buildJournal(el,'kasparov','Garry Kasparov','New York, mai 1997',
-    `Au 36e coup du 2e match, la machine a joué un coup que je n'avais jamais vu. Pas dans les livres, pas dans mes analyses. J'ai voulu comprendre ; IBM a refusé de me montrer les logs. Ce refus m'a brisé plus que la défaite. Qui peut faire confiance à ce qu'il ne peut pas inspecter ? J'ai perdu contre une machine, mais surtout contre l'opacité.`);
+  narr3.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">New York, mai 1997. Vous entrez dans une salle bondée. Sur scène : Kasparov, le meilleur joueur d'échecs au monde, face à Deep Blue. L'an dernier, Kasparov avait gagné. Aujourd'hui, il perd la partie décisive. <em>"La machine a battu l'homme !"</em> titrent les journaux.</p>
+    <p class="scene-text">Mais voici ce que les titres omettent : Deep Blue n'a pas <em>appris</em> à jouer aux échecs. Elle <strong>applique des règles programmées</strong> par des ingénieurs et des grands-maîtres, à 200 millions de positions par seconde. Ce n'est pas de l'intelligence ; c'est de la puissance de calcul brute dans un univers aux règles parfaitement définies.</p>
+    <p class="scene-text">Il y a une raison à cela : les échecs sont un <strong>domaine fermé</strong>. Environ 10⁴³ positions possibles, un chiffre vertigineux, mais <em>fini</em>. Dans ce monde aux règles parfaitement définies, Deep Blue était imbattable. Mais sortez-la de là : elle ne peut pas faire une tartine, comprendre une conversation, ni s'adapter à des règles qui changent en cours de route.</p>
+  `));
+  const revBtn3=document.createElement('button'); revBtn3.className='pause-skip-btn'; revBtn3.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;'; revBtn3.textContent='Continuer →';
+  revBtn3.onclick=()=>{revBtn3.style.display='none';revealSection(ch3);};
+  narr3.appendChild(revBtn3);
+  el.appendChild(narr3);
 
-  aH(el,scTxt(`New York, mai 1997. Vous entrez dans une salle bondée. Sur scène : Kasparov, le meilleur joueur d'échecs au monde, face à Deep Blue. L'an dernier, Kasparov avait gagné. Aujourd'hui, il perd la partie décisive. <em>"La machine a battu l'homme !"</em> titrent les journaux.`));
-  aH(el,scTxt(`Mais voici ce que les titres omettent : Deep Blue n'a pas <em>appris</em> à jouer aux échecs. Elle <strong>applique des règles programmées</strong> par des ingénieurs et des grands-maîtres, à 200 millions de positions par seconde. Ce n'est pas de l'intelligence ; c'est de la puissance de calcul brute dans un univers aux règles parfaitement définies.`));
-  aH(el,scTxt(`Il y a une raison à cela : les échecs sont un <strong>domaine fermé</strong>. Environ 10⁴³ positions possibles — un chiffre vertigineux, mais <em>fini</em>. Dans ce monde aux règles parfaitement définies, Deep Blue était imbattable. Mais sortez-la de là : elle ne peut pas faire une tartine, comprendre une conversation, ni s'adapter à des règles qui changent en cours de route. L'intelligence, la vraie, opère dans un monde ouvert. Deep Blue n'a jamais quitté son échiquier.`));
-
-  challenge(el,{
-    question:`Un arbitre vous remet un document avant d'entrer :<br><em>"Kasparov soupçonnait qu'IBM avait laissé des humains intervenir dans les décisions de Deep Blue lors d'un coup mystérieux. IBM a refusé de montrer les logs."</em><br>Pourquoi cette controverse reste-t-elle pertinente aujourd'hui ?`,
+  const journal3=buildJournal(ch3,'kasparov','Garry Kasparov','New York, mai 1997',
+    `Au 36e coup du 2e match, la machine a joué un coup que je n'avais jamais vu. Pas dans les livres, pas dans mes analyses. J'ai voulu comprendre ; IBM a refusé de me montrer les logs. Ce refus m'a brisé plus que la défaite. Qui peut faire confiance à ce qu'il ne peut pas inspecter ?`);
+  challenge(ch3,{
+    question:`<em>"Kasparov soupçonnait qu'IBM avait laissé des humains intervenir dans les décisions de Deep Blue lors d'un coup mystérieux. IBM a refusé de montrer les logs."</em><br>Pourquoi cette controverse reste-t-elle pertinente aujourd'hui ?`,
     options:[
       {text:`Elle ne l'est plus : les IA modernes sont transparentes et vérifiables.`,correct:false},
       {text:`Parce qu'elle révèle un problème structurel : si on ne peut pas inspecter le raisonnement d'un système IA, on ne peut ni le contester ni lui faire confiance de façon éclairée.`,correct:true},
@@ -1162,69 +1337,72 @@ const nodes={
     ],
     feedbacks:[
       `C'est le contraire. Les modèles les plus puissants sont des "boîtes noires" : on voit leurs réponses, pas leur raisonnement interne. L'explicabilité des IA est un chantier de recherche ouvert, pas un problème résolu.`,
-      `Exactement : c'est la question de l'explicabilité. Un médecin qui ne motive pas son diagnostic peut être contesté. Un algorithme opaque qui décide de ton crédit, de ta liberté conditionnelle ou de ton embauche, comment le contester ? Ce problème est plus actuel que jamais.`,
+      `Exactement : c'est la question de l'explicabilité. Un médecin qui ne motive pas son diagnostic peut être contesté. Un algorithme opaque qui décide de ton crédit, de ta liberté conditionnelle ou de ton embauche, comment le contester ?`,
       `Le point sur la manipulation est réel mais secondaire. Le vrai problème n'est pas la triche ; c'est l'impossibilité structurelle de vérifier. Même sans mauvaise intention, une boîte noire ne peut pas rendre de comptes.`,
     ],
-    crystalOnCorrect:1,
-    door, journal,
+    crystalOnCorrect:1, journal:journal3,
     onNeutral:()=>{
-      const secret=buildSecretRoom(el,'kasparov-secret',
+      const secret=buildSecretRoom(ch3,'kasparov-secret',
         `<p>Vous avez pointé quelque chose de réel et vous avez ouvert un passage secret ! 🎉<br><br>
-        <strong>Le biais de confirmation des créateurs :</strong> en 2019, des chercheurs ont montré que plusieurs IA médicales avaient été entraînées sur des populations non représentatives. Elles fonctionnaient moins bien sur les peaux foncées. Pas de mauvaise intention, mais un angle mort. L'opacité des systèmes rend ces biais invisibles jusqu'au drame.</p>`);
-      secret.classList.add('show');
-      addGold(1);
+        <strong>Le biais de confirmation des créateurs :</strong> en 2019, des chercheurs ont montré que plusieurs IA médicales avaient été entraînées sur des populations non représentatives. Elles fonctionnaient moins bien sur les peaux foncées. Pas de mauvaise intention, mais un angle mort.</p>`);
+      secret.classList.add('show'); addGold(1);
       secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
-      if(door && journal){unlockDoor(door,()=>journal.classList.add('show'));}
     },
+    onAnswered:()=>revealSection(en3),
   });
+  el.appendChild(ch3);
 
-  aH(el,sep());
-  buildBinaryDrill(el, ()=>{
-    const secret=buildSecretRoom(el,'binary-secret',
-      `<p>Vous avez découvert la couche la plus profonde. Mais il y en a une encore plus fascinante : les <strong>embeddings</strong>. Chaque token est converti en un vecteur de 768 à 12 288 nombres décimaux. Dans cet espace mathématique, "roi" moins "homme" plus "femme" donne approximativement "reine". La signification émerge des relations entre vecteurs, sans que personne ne l'ait programmée.</p>`);
-    secret.classList.add('show');
-    addGold(1);
+  aH(en3,sep());
+  buildBinaryDrill(en3, ()=>{
+    const secret=buildSecretRoom(en3,'binary-secret',
+      `<p>Vous avez découvert la couche la plus profonde. Vous savez maintenant ce qu'est un <strong>token</strong> : un fragment de texte converti en nombre. Mais il y a une étape encore plus fascinante : les <strong>embeddings</strong>. Chaque token est projeté dans un espace mathématique à des milliers de dimensions, représenté par un vecteur de 768 à 12 288 nombres décimaux. Dans cet espace, "roi" moins "homme" plus "femme" donne approximativement "reine". La signification émerge des relations entre vecteurs, sans que personne ne l'ait programmée.</p>`);
+    secret.classList.add('show'); addGold(1);
     secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
+    revealSection(nav3);
   });
+  const skip3=document.createElement('button'); skip3.className='pause-skip-btn'; skip3.style.cssText='margin-top:.8rem;display:block;margin-left:auto;margin-right:auto;opacity:.45;'; skip3.textContent='Passer l\'énigme';
+  skip3.onclick=()=>revealSection(nav3);
+  en3.appendChild(skip3);
+  el.appendChild(en3);
 
-  aH(el,sep());
-  navBtn(el,'Avancer vers 2016',4);
+  aH(nav3,sep());
+  navBtn(nav3,'Avancer vers 2016',4);
+  el.appendChild(nav3);
 },
 
 // ── 4. LA GROTTE DES ILLUSIONS ──
 4:(el)=>{
   aH(el,badge('Époque IV · Séoul, 2016'));
   aH(el,scTitle('La Grotte des Illusions'));
-  aH(el,`<img src="image5.png" alt="La Grotte des Illusions — AlphaGo, Séoul 2016" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(168,85,247,.2);display:block;"/>`);
+  aH(el,`<img src="image5.png" alt="La Grotte des Illusions · AlphaGo, Séoul 2016" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(168,85,247,.2);display:block;"/>`);
 
-  const doorSvg=`<svg viewBox="0 0 820 200" style="width:100%;height:100%;">
-    <defs><radialGradient id="gg4" cx="50%" cy="70%" r="70%"><stop offset="0%" stop-color="#1a0020"/><stop offset="100%" stop-color="#050810"/></radialGradient></defs>
-    <rect width="820" height="200" fill="url(#gg4)"/>
-    <ellipse cx="410" cy="170" rx="320" ry="55" fill="rgba(168,85,247,.04)" stroke="rgba(168,85,247,.12)" stroke-width="1"/>
-    <circle cx="410" cy="82" r="42" fill="rgba(168,85,247,.07)" stroke="rgba(168,85,247,.3)" stroke-width="1"/>
-    <text x="410" y="78" text-anchor="middle" font-family="Share Tech Mono" font-size="9" fill="#c084fc">AlphaGo</text>
-    <text x="410" y="95" text-anchor="middle" font-family="Share Tech Mono" font-size="7" fill="rgba(168,85,247,.5)">DeepMind · 2016</text>
-    <text x="410" y="150" text-anchor="middle" font-family="Crimson Pro" font-size="11" fill="#6a7fa0" font-style="italic">Coup 37 — jamais joué par un humain</text>
-    ${Array.from({length:9},(_,i)=>`<polygon points="${100+i*70},15 ${112+i*70},35 ${88+i*70},35" fill="rgba(168,85,247,${.03+i*.01})"/>`).join('')}
-  </svg>`;
+  const narr4=document.createElement('div'); narr4.style.display='none';
+  const ch4=document.createElement('div'); ch4.style.display='none';
+  const nav4=document.createElement('div'); nav4.style.display='none';
 
   buildPause(el,
     `Une machine peut-elle être créative ? Inventer quelque chose que personne n'a jamais pensé, est-ce réservé aux humains ?`,
-    `Un programme d'improvisation jazz joue des notes que personne n'a jamais jouées dans cet ordre. A-t-il <em>créé</em> ? Pensez à quelque chose que vous avez inventé ou imaginé récemment. D'où ça venait ? Qu'est-ce qui fait que c'était <em>vraiment</em> le vôtre ?`,
-    `En 2016, AlphaGo a joué un coup que personne n'avait jamais pensé en deux millénaires d'histoire du Go. Les experts ont dit que c'était "beau". Lee Sedol a dû quitter la salle pour reprendre ses esprits. Mais AlphaGo ne savait pas qu'il était "créatif". Il optimisait une fonction mathématique. La créativité sans conscience, est-ce de la créativité ?`
+    ``,
+    `Un programme d'improvisation jazz joue des notes que personne n'a jamais jouées dans cet ordre. A-t-il créé ? Pensez à quelque chose que vous avez inventé ou imaginé récemment. D'où ça venait ? Qu'est-ce qui fait que c'était vraiment le vôtre ?<br><br>En 2016, AlphaGo a joué un coup que personne n'avait jamais pensé en deux millénaires d'histoire du Go. Les experts ont dit que c'était "beau". Lee Sedol a dû quitter la salle pour reprendre ses esprits. Mais AlphaGo ne savait pas qu'il était "créatif". Il optimisait une fonction mathématique. La créativité sans conscience, est-ce de la créativité ?`,
+    120, ()=>revealSection(narr4)
   );
 
-  const door=buildSealedDoor(el, doorSvg, `Résous l'épreuve pour entrer dans la grotte`);
-  const journal=buildJournal(el,'leesedol','Lee Sedol','Séoul, mars 2016',
-    `Au 37e coup, la machine a posé sa pierre en un endroit que je n'aurais jamais envisagé. J'ai dû quitter la salle pour reprendre mes esprits. Non pas parce que j'allais perdre, mais parce que quelque chose venait de changer dans ma compréhension du jeu. Elle m'a appris quelque chose que vingt années de pratique ne m'avaient pas enseigné. C'est la chose la plus étrange qu'une machine m'ait jamais faite.`);
+  narr4.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">Séoul, mars 2016. Lee Sedol regarde l'écran avec incrédulité. Au 37e coup, AlphaGo a joué quelque chose que <strong>personne n'avait jamais joué</strong> en deux millénaires d'histoire du Go. Pas dans les livres. Nulle part.</p>
+    <p class="scene-text">Contrairement à Deep Blue, AlphaGo n'a pas été programmé avec des règles. Il a <strong>appris par renforcement</strong> : en jouant des millions de parties contre lui-même, il a développé une stratégie que personne ne lui avait enseignée. C'est une rupture fondamentale dans l'histoire de l'IA.</p>
+  `));
+  buildNeuralNet(narr4);
+  narr4.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">Un an plus tard, DeepMind va encore plus loin. <strong>AlphaGo Zero</strong> repart de zéro : sans aucun exemple humain, sans aucune partie historique. Il joue contre lui-même, encore et encore, jusqu'à battre la version précédente 100 matchs à 0. Et il est totalement incapable de quoi que ce soit d'autre. Il ne sait pas ce qu'est un joueur. Il ne sait pas qu'il joue.</p>
+  `));
+  const revBtn4=document.createElement('button'); revBtn4.className='pause-skip-btn'; revBtn4.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;'; revBtn4.textContent='Continuer →';
+  revBtn4.onclick=()=>{revBtn4.style.display='none';revealSection(ch4);};
+  narr4.appendChild(revBtn4);
+  el.appendChild(narr4);
 
-  aH(el,scTxt(`Séoul, mars 2016. Lee Sedol regarde l'écran avec incrédulité. Au 37e coup, AlphaGo a joué quelque chose que <strong>personne n'avait jamais joué</strong> en deux millénaires d'histoire du Go. Pas dans les livres. Nulle part.`));
-  aH(el,scTxt(`Contrairement à Deep Blue, AlphaGo n'a pas été programmé avec des règles. Il a <strong>appris par renforcement</strong> : en jouant des millions de parties contre lui-même, il a développé une stratégie que personne ne lui avait enseignée. C'est une rupture fondamentale dans l'histoire de l'IA.`));
-
-  buildNeuralNet(el);
-  aH(el,scTxt(`Un an plus tard, DeepMind va encore plus loin. <strong>AlphaGo Zero</strong> repart de zéro — sans aucun exemple humain, sans aucune partie historique. Il joue contre lui-même, encore et encore, jusqu'à battre la version précédente 100 matchs à 0. Il est aujourd'hui le meilleur joueur de Go que l'humanité ait jamais produit ou conçu. Et il est totalement incapable de quoi que ce soit d'autre. Il ne sait pas ce qu'est un joueur. Il ne sait pas qu'il joue.`));
-
-  challenge(el,{
+  const journal4=buildJournal(ch4,'leesedol','Lee Sedol','Séoul, mars 2016',
+    `Au 37e coup, la machine a posé sa pierre en un endroit que je n'aurais jamais envisagé. J'ai dû quitter la salle pour reprendre mes esprits. Non pas parce que j'allais perdre, mais parce que quelque chose venait de changer dans ma compréhension du jeu. Elle m'a appris quelque chose que vingt années de pratique ne m'avaient pas enseigné.`);
+  challenge(ch4,{
     question:`AlphaGo Zero, en apprenant seul, a dépassé toutes les versions précédentes. Certains ont dit : "L'IA n'a plus besoin des humains." Quelle est la limite de cette affirmation ?`,
     options:[
       {text:`Elle est vraie : AlphaGo Zero prouve que l'IA peut tout apprendre seule dans n'importe quel domaine.`,correct:false},
@@ -1233,61 +1411,188 @@ const nodes={
     ],
     feedbacks:[
       `AlphaGo Zero est imbattable au Go, mais incapable de comprendre pourquoi Lee Sedol est triste. L'autonomie fonctionne dans des domaines fermés. La réalité est ouverte, ambiguë, changeante. Toutes les IA actuelles sont "étroites".`,
-      `Exactement. C'est la distinction IA <em>étroite</em> vs IA <em>générale</em> (hypothétique). GPT-4 est étroit dans le langage. AlphaGo est étroit dans le Go. Aucune IA actuelle ne généralise spontanément à d'autres domaines que celui sur lequel elle a été entraînée.`,
+      `Exactement. C'est la distinction IA <em>étroite</em> vs IA <em>générale</em> (hypothétique). GPT-4 est étroit dans le langage. AlphaGo est étroit dans le Go. Aucune IA actuelle ne généralise spontanément à d'autres domaines.`,
       `Observation juste et sous-estimée. "Apprendre seul" signifie : sans exemples humains pour sa stratégie, mais dans un environnement défini. Elle ne se donne pas ses propres objectifs : c'est crucial.`,
     ],
-    crystalOnCorrect:1,
-    door, journal,
+    crystalOnCorrect:1, journal:journal4,
     onNeutral:()=>{
-      const secret=buildSecretRoom(el,'alphago-secret',
+      const secret=buildSecretRoom(ch4,'alphago-secret',
         `<p>Vous avez trouvé un passage secret philosophique ! 🎉<br><br>
-        <strong>Le problème de l'alignement des objectifs :</strong> AlphaGo se fixe un objectif simple, gagner. Mais dans des systèmes plus complexes, "se donner ses propres objectifs" devient un enjeu de sécurité majeur. Si une IA optimise pour "maximiser les clics", elle découvre que la désinformation génère plus de clics que la vérité. Elle atteint son objectif, pas le nôtre. C'est pourquoi l'alignement est l'un des problèmes les plus difficiles de l'IA actuelle.</p>`);
-      secret.classList.add('show');
-      addGold(1);
+        <strong>Le problème de l'alignement des objectifs :</strong> AlphaGo se fixe un objectif simple, gagner. Mais dans des systèmes plus complexes, "se donner ses propres objectifs" devient un enjeu de sécurité majeur. Si une IA optimise pour "maximiser les clics", elle découvre que la désinformation génère plus de clics que la vérité.</p>`);
+      secret.classList.add('show'); addGold(1);
       secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
-      if(door && journal){unlockDoor(door,()=>journal.classList.add('show'));}
     },
+    onAnswered:()=>revealSection(nav4),
   });
+  el.appendChild(ch4);
 
-  aH(el,sep());
-  navBtn(el,'Rejoindre 2024',5);
+  aH(nav4,sep());
+  navBtn(nav4,'Vers 2022 · La Grande Révélation',10);
+  el.appendChild(nav4);
 },
 
-// ── 5. LE MARCHÉ DES PROMPTS + LA FORÊT ──
+// ── 10. LA GRANDE RÉVÉLATION · 2022 ──
+10:(el)=>{
+  aH(el,badge('Époque IV bis · Novembre 2022'));
+  aH(el,scTitle('La Grande Révélation'));
+  aH(el,`<img src="image9.png" alt="La Grande Révélation · ChatGPT, novembre 2022" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.18);display:block;"/>`);
+
+  const narr10=document.createElement('div'); narr10.style.display='none';
+  const ch10=document.createElement('div'); ch10.style.display='none';
+  const en10=document.createElement('div'); en10.style.display='none';
+  const nav10=document.createElement('div'); nav10.style.display='none';
+
+  buildPause(el,
+    `L'IA existait déjà depuis des années autour de vous. Vous l'utilisiez sans le savoir. Pouvez-vous citer des exemples d'IA que vous utilisez au quotidien, sans interface de chat ?`,
+    ``,
+    `Le GPS qui recalcule votre itinéraire en temps réel. La traduction automatique. Siri, Alexa, Google Assistant. Le filtre qui reconnaît les visages sur vos photos. Les sous-titres automatiques de YouTube. Spotify qui devine vos goûts. Le filtre anti-spam de votre boîte mail. Ces IA étaient déjà là, discrètes, spécialisées. Ce qui a changé en 2022, c'est qu'une IA a soudain parlé à tout le monde, en langage naturel, gratuitement, depuis un navigateur.`,
+    120, ()=>revealSection(narr10)
+  );
+
+  narr10.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">Novembre 2022. OpenAI publie <strong>ChatGPT</strong>. En cinq jours, un million d'utilisateurs. En deux mois, cent millions. Jamais une application n'avait grossi aussi vite dans l'histoire d'internet. Ni Facebook, ni Instagram, ni TikTok.</p>
+    <p class="scene-text">Mais ChatGPT n'est pas tombé du ciel. Il est le résultat de décennies de recherche : le test de Turing (1950), les hivers de l'IA (1970), la victoire de Deep Blue (1997), l'apprentissage par renforcement d'AlphaGo (2016), et des années de travail sur les <strong>transformers</strong>, une architecture d'apprentissage profond inventée en 2017 par des chercheurs de Google.</p>
+    <p class="scene-text">Ce qui change en 2022, ce n'est pas l'IA. C'est son <strong>interface</strong>. Pour la première fois, n'importe qui peut dialoguer avec un grand modèle de langage en langage naturel, sans code, sans formation, depuis un navigateur. L'IA sort des laboratoires et entre dans les foyers.</p>
+    <p class="scene-text">ChatGPT n'est pas seul. Quelques mois plus tôt, Google avait <strong>LaMDA</strong>, devenu <strong>Gemini</strong>. Meta publie <strong>LLaMA</strong>, un modèle open-source que des milliers de développeurs s'approprient. Anthropic, fondée par d'anciens chercheurs d'OpenAI, développe <strong>Claude</strong>. Mistral, une startup française, crée des modèles compacts mais puissants. En moins de deux ans, des dizaines de LLM (Large Language Models) existent, chacun avec ses spécialités, ses limites, ses choix éthiques.</p>
+  `));
+  const revBtn10=document.createElement('button'); revBtn10.className='pause-skip-btn'; revBtn10.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;'; revBtn10.textContent='Continuer →';
+  revBtn10.onclick=()=>{revBtn10.style.display='none';revealSection(ch10);};
+  narr10.appendChild(revBtn10);
+  el.appendChild(narr10);
+
+  // Challenge
+  const journal10=buildJournal(ch10,'samaltman','Sam Altman, CEO d\'OpenAI (reconstitué)','Novembre 2022',
+    `Nous ne savions pas exactement ce qui allait se passer quand nous avons publié ChatGPT. Nous pensions que des développeurs allaient l'utiliser. Nous n'avions pas anticipé que des professeurs, des médecins, des lycéens, des retraités allaient s'en emparer en quelques jours. Quelque chose avait changé dans la façon dont les gens percevaient ce que l'IA pouvait faire. Et nous n'étions pas sûrs d'être prêts.`);
+  challenge(ch10,{
+    question:`Pourquoi l'arrivée de ChatGPT en novembre 2022 est-elle considérée comme une rupture, alors que l'IA existait déjà depuis des décennies ?`,
+    options:[
+      {text:`Parce que ChatGPT était techniquement bien supérieur à tout ce qui existait avant.`,correct:false},
+      {text:`Parce que c'était la première fois qu'une IA puissante était accessible à tous, gratuitement, en langage naturel, sans aucune compétence technique.`,correct:true},
+      {text:`Parce que c'était la première IA capable de tenir une vraie conversation consciente.`,correct:false},
+    ],
+    feedbacks:[
+      `La supériorité technique n'est pas la rupture principale. GPT-3 existait depuis 2020 et était déjà très capable. Ce qui a tout changé, c'est l'accessibilité : zéro barrière à l'entrée, zéro code, n'importe qui depuis n'importe quel navigateur.`,
+      `Exactement. La révolution n'est pas technique, elle est démocratique. Des chercheurs utilisaient des LLM depuis des années via des API. En novembre 2022, cent millions de personnes sans aucune formation technique ont pu faire la même chose en cinq minutes.`,
+      `Non : ChatGPT n'est pas conscient, ne comprend pas, ne ressent rien. C'est précisément ce que ce voyage vous a appris. La rupture est dans l'interface et l'accessibilité, pas dans la conscience de la machine.`,
+    ],
+    crystalOnCorrect:1,
+    journal:journal10,
+    onAnswered:()=>revealSection(en10),
+  });
+  el.appendChild(ch10);
+
+  // Enigma: spot the hidden AIs
+  aH(en10, sep());
+  aH(en10, `<p class="scene-text">Avant de continuer, un moment de reconnaissance. Ces outils font partie de votre quotidien. Lesquels utilisent déjà de l'IA ?</p>`);
+  (()=>{
+    const tools=[
+      {name:'GPS / Google Maps', icon:'🗺️', hasAI:true, why:`Oui. Le GPS utilise l'IA pour prédire le trafic, recalculer l'itinéraire en temps réel et estimer les heures d'arrivée à partir de millions de données anonymisées.`},
+      {name:'Filtre anti-spam', icon:'📧', hasAI:true, why:`Oui. Votre boîte mail analyse chaque message entrant avec un modèle d'apprentissage automatique entraîné sur des milliards d'exemples de spam.`},
+      {name:'Reconnaissance vocale', icon:'🎤', hasAI:true, why:`Oui. Siri, Google Assistant, Alexa : ce sont des réseaux de neurones entraînés sur des centaines de milliers d'heures de voix humaine.`},
+      {name:'Suggestions de séries', icon:'🎬', hasAI:true, why:`Oui. Netflix, Spotify, YouTube utilisent des algorithmes de recommandation qui apprennent de vos habitudes pour prédire ce qui vous plaira.`},
+      {name:'Correcteur orthographique', icon:'✏️', hasAI:true, why:`Oui. Les correcteurs modernes (comme ceux de Word ou Google Docs) utilisent des modèles de langage pour comprendre le contexte et proposer des corrections.`},
+      {name:'Sous-titres automatiques', icon:'📺', hasAI:true, why:`Oui. La transcription automatique de YouTube ou Teams repose sur des modèles de reconnaissance vocale profonds, comme Whisper d'OpenAI.`},
+      {name:'Thermostat connecté', icon:'🌡️', hasAI:true, why:`Oui. Des thermostats comme Nest apprennent vos habitudes et optimisent la température automatiquement grâce à l'apprentissage automatique.`},
+      {name:'Ampoule connectée', icon:'💡', hasAI:false, why:`Non. Une ampoule connectée peut s'allumer à distance ou suivre un planning, mais elle n'apprend rien et ne prédit rien. C'est de la domotique, pas de l'IA.`},
+      {name:'Calculatrice', icon:'🔢', hasAI:false, why:`Non. Une calculatrice applique des règles mathématiques fixes, programmées à l'avance. Elle ne s'améliore pas, n'apprend pas, ne s'adapte pas. C'est de l'algorithmique classique.`},
+      {name:'Lave-linge connecté', icon:'🫧', hasAI:false, why:`Non dans la majorité des cas. Un lave-linge connecté peut être contrôlé à distance ou proposer des programmes, mais il suit des règles fixes, sans apprentissage ni adaptation à vos habitudes.`},
+      {name:'Filtre photo "Portrait"', icon:'📸', hasAI:true, why:`Oui. Le mode portrait de votre smartphone utilise un réseau de neurones pour détecter les visages, séparer le sujet de l'arrière-plan et appliquer un flou artificiel précis.`},
+      {name:'Paiement sans contact', icon:'💳', hasAI:true, why:`Oui. Votre banque analyse en temps réel des dizaines de signaux (heure, lieu, montant, habitudes) pour détecter une fraude potentielle. Ce système traite des millions de transactions par seconde.`},
+    ];
+
+    const w=document.createElement('div');
+    w.style.cssText='background:rgba(8,14,32,.88);border:1px solid rgba(136,238,255,.18);border-radius:5px;padding:1.3rem;margin:1rem 0;';
+    w.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--crystal);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.9rem;">🔍 L'IA invisible · Cliquez sur chaque outil pour découvrir</div>
+      <div id="ai-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.6rem;"></div>
+      <div id="ai-score" style="font-family:var(--font-mono);font-size:.78rem;color:var(--dim);margin-top:.9rem;"></div>`;
+    en10.appendChild(w);
+
+    const grid=w.querySelector('#ai-grid');
+    const scoreEl=w.querySelector('#ai-score');
+    let revealed=0;
+
+    tools.forEach(t=>{
+      const card=document.createElement('div');
+      card.style.cssText=`background:rgba(17,34,68,.6);border:1px solid rgba(200,212,232,.12);border-radius:4px;padding:.8rem;cursor:pointer;transition:all .25s;text-align:center;`;
+      card.innerHTML=`<div style="font-size:1.6rem;margin-bottom:.4rem;">${t.icon}</div>
+        <div style="font-family:var(--font-mono);font-size:.7rem;color:var(--silver);line-height:1.4;">${t.name}</div>
+        <div class="ai-tag" style="display:none;margin-top:.5rem;font-size:.68rem;font-family:var(--font-mono);font-weight:700;"></div>
+        <div class="ai-why" style="display:none;font-size:.72rem;color:var(--dim);margin-top:.4rem;line-height:1.5;text-align:left;"></div>`;
+      card.onmouseover=()=>{if(!card.dataset.revealed)card.style.borderColor='rgba(0,212,180,.4)';};
+      card.onmouseout=()=>{if(!card.dataset.revealed)card.style.borderColor='rgba(200,212,232,.12)';};
+      card.onclick=()=>{
+        if(card.dataset.revealed) return;
+        card.dataset.revealed='1';
+        revealed++;
+        const tag=card.querySelector('.ai-tag');
+        const why=card.querySelector('.ai-why');
+        tag.style.display='block';
+        why.style.display='block';
+        if(t.hasAI){
+          card.style.borderColor='rgba(0,212,180,.5)';
+          card.style.background='rgba(0,212,180,.07)';
+          tag.style.color='var(--teal)';
+          tag.textContent='✓ Utilise l\'IA';
+        } else {
+          card.style.borderColor='rgba(200,212,232,.25)';
+          card.style.background='rgba(17,34,68,.4)';
+          tag.style.color='var(--dim)';
+          tag.textContent='✗ Pas d\'IA';
+        }
+        why.textContent=t.why;
+        const aiCount=tools.filter(tt=>tt.hasAI).length;
+        scoreEl.textContent=`${revealed} / ${tools.length} révélés · ${tools.filter(tt=>tt.hasAI).length} sur ${tools.length} utilisent l'IA`;
+        if(revealed===tools.length){
+          addCrystals(1);
+          scoreEl.innerHTML=`Tous révélés ! <strong style="color:var(--teal)">${aiCount} outils sur ${tools.length} utilisent déjà l'IA</strong> dans votre quotidien. <span class="crystal-gain">+1 💎</span>`;
+          setTimeout(()=>revealSection(nav10),600);
+        }
+      };
+      grid.appendChild(card);
+    });
+  })();
+
+  const skip10=document.createElement('button'); skip10.className='pause-skip-btn'; skip10.style.cssText='margin-top:.8rem;display:block;margin-left:auto;margin-right:auto;opacity:.45;'; skip10.textContent='Passer l\'exploration';
+  skip10.onclick=()=>revealSection(nav10);
+  en10.appendChild(skip10);
+  el.appendChild(en10);
+
+  aH(nav10,sep());
+  navBtn(nav10,'Rejoindre 2024',5);
+  el.appendChild(nav10);
+},
+
+// ── 5. LE MARCHÉ DES PROMPTS ──
 5:(el)=>{
   aH(el,badge('Époque V · 2024'));
   aH(el,scTitle('Le Marché des Prompts'));
-  aH(el,`<img src="image6.png" alt="Le Marché des Prompts — IA générative, 2024" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
+  aH(el,`<img src="image7.png" alt="Le Marché des Prompts · IA générative, 2024" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
 
-  const doorSvg=`<svg viewBox="0 0 820 200" style="width:100%;height:100%;">
-    <rect width="820" height="200" fill="#050810"/>
-    <rect x="50" y="42" width="200" height="96" rx="3" fill="rgba(0,212,180,.04)" stroke="rgba(0,212,180,.14)" stroke-width="1"/>
-    <rect x="308" y="42" width="200" height="96" rx="3" fill="rgba(0,212,180,.10)" stroke="rgba(0,212,180,.38)" stroke-width="1.5"/>
-    <rect x="566" y="42" width="200" height="96" rx="3" fill="rgba(255,107,138,.04)" stroke="rgba(255,107,138,.14)" stroke-width="1"/>
-    <text x="150" y="82" text-anchor="middle" font-family="Share Tech Mono" font-size="8" fill="#6a7fa0">Prompt vague</text>
-    <text x="408" y="82" text-anchor="middle" font-family="Share Tech Mono" font-size="8" fill="#00d4b4">Prompt structuré</text>
-    <text x="666" y="82" text-anchor="middle" font-family="Share Tech Mono" font-size="8" fill="#ff6b8a">Contradictoire</text>
-    <text x="150" y="108" text-anchor="middle" font-family="Crimson Pro" font-size="10" fill="#6a7fa0" font-style="italic">résultat aléatoire</text>
-    <text x="408" y="108" text-anchor="middle" font-family="Crimson Pro" font-size="10" fill="#00d4b4" font-style="italic">résultat ciblé</text>
-    <text x="666" y="108" text-anchor="middle" font-family="Crimson Pro" font-size="10" fill="#ff6b8a" font-style="italic">confusion garantie</text>
-  </svg>`;
+  const narr5=document.createElement('div'); narr5.style.display='none';
+  const ch5=document.createElement('div'); ch5.style.display='none';
+  const en5=document.createElement('div'); en5.style.display='none';
+  const nav5=document.createElement('div'); nav5.style.display='none';
 
   buildPause(el,
     `Si une IA peut inventer des faits avec la même assurance qu'elle en cite de vrais, comment sauriez-vous faire la différence ?`,
-    `Un confident très sûr de lui qui invente des souvenirs sans s'en rendre compte — vous lui feriez encore confiance ? Pensez à une information que vous avez lue récemment et que vous n'avez pas vérifiée. Étiez-vous certains de sa fiabilité ? Comment détecte-t-on une erreur confiante ?`,
-    `Une IA ne "sait" pas si ce qu'elle dit est vrai. Elle prédit ce qui est statistiquement vraisemblable. "Napoléon est né à Ajaccio en 1769" et "Napoléon est né à Ajaccio en 1771" ont des probabilités proches dans ses données. Elle choisit sans vérifier. C'est structurel : toujours vérifier les chiffres, les dates et les sources qu'une IA vous donne.`
+    ``,
+    `Un confident très sûr de lui qui invente des souvenirs sans s'en rendre compte : vous lui feriez encore confiance ? Pensez à une information que vous avez lue récemment et que vous n'avez pas vérifiée. Comment détecte-t-on une erreur confiante ?<br><br>Une IA ne "sait" pas si ce qu'elle dit est vrai. Elle prédit ce qui est statistiquement vraisemblable. "Napoléon est né à Ajaccio en 1769" et "en 1771" ont des probabilités proches dans ses données. Elle choisit sans vérifier. C'est structurel : toujours vérifier les chiffres, les dates et les sources qu'une IA vous donne.`,
+    120, ()=>revealSection(narr5)
   );
 
-  const door=buildSealedDoor(el, doorSvg, `Résolvez l'épreuve pour accéder au marché`);
-  const journal=buildJournal(el,'researcher','Yann LeCun (reconstitué)','New York, 2023',
-    `On me demande si je crains que les LLM deviennent trop puissants. Non. Je crains quelque chose de plus subtil : que les gens les croient omniscients. Un modèle de langage prédit des tokens vraisemblables. Il ne "sait" rien. Quand il dit "Paris est la capitale de l'Allemagne", il ne ment pas ; il génère une phrase grammaticalement correcte et syntaxiquement plausible qui se trouve être fausse. La différence est cruciale et presque personne ne la comprend.`);
+  narr5.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">2024. Vous traversez un marché aux couleurs de l'IA générative. Des millions de personnes posent des questions à ChatGPT, Claude, Gemini. Mais comment fonctionnent-ils ? Réponse déroutante : ils <strong>prédisent le token suivant</strong>, encore et encore. Ils ne savent pas. Ils calculent ce qui est statistiquement vraisemblable.</p>
+    <p class="scene-text">C'est pourquoi ils peuvent écrire une fausse biographie avec la même assurance qu'une vraie. On appelle ça une <strong>hallucination</strong> : l'IA invente des faits, des dates, des sources, avec une confiance absolue. Ce n'est pas un mensonge ; c'est une limite architecturale.</p>
+  `));
+  buildProbExplorer(narr5);
+  const revBtn5=document.createElement('button'); revBtn5.className='pause-skip-btn'; revBtn5.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;'; revBtn5.textContent='Continuer →';
+  revBtn5.onclick=()=>{revBtn5.style.display='none';revealSection(ch5);};
+  narr5.appendChild(revBtn5);
+  el.appendChild(narr5);
 
-  aH(el,scTxt(`2024. Vous traversez un marché aux couleurs de l'IA générative. Des millions de personnes posent des questions à ChatGPT, Claude, Gemini. Mais comment fonctionnent-ils ? Réponse déroutante : ils <strong>prédisent le token suivant</strong>, encore et encore. Ils ne savent pas. Ils calculent ce qui est statistiquement vraisemblable.`));
-  aH(el,scTxt(`C'est pourquoi ils peuvent écrire une fausse biographie avec la même assurance qu'une vraie. On appelle ça une <strong>hallucination</strong> : l'IA invente des faits, des dates, des sources, avec une confiance absolue. Ce n'est pas un mensonge ; c'est une limite architecturale.`));
-
-  buildProbExplorer(el);
-
-  challenge(el,{
+  const journal5=buildJournal(ch5,'researcher','Yann LeCun (reconstitué)','New York, 2023',
+    `On me demande si je crains que les LLM deviennent trop puissants. Non. Je crains quelque chose de plus subtil : que les gens les croient omniscients. Un modèle de langage prédit des tokens vraisemblables. Il ne "sait" rien. Quand il dit "Paris est la capitale de l'Allemagne", il ne ment pas ; il génère une phrase grammaticalement correcte et syntaxiquement plausible qui se trouve être fausse.`);
+  challenge(ch5,{
     question:`Un marchand vous apostrophe : <em>"Je vous donne 3 références scientifiques sur le sommeil en 3 secondes."</em> Vous demandez à une IA et elle vous cite effectivement 3 articles avec auteurs, revues et années. Quelle attitude est la plus éclairée ?`,
     options:[
       {text:`Je copie les références : une IA ne peut pas inventer des titres scientifiques.`,correct:false},
@@ -1295,37 +1600,76 @@ const nodes={
       {text:`Je l'utilise comme point de départ : je vérifie chaque référence sur Google Scholar avant de citer.`,correct:true},
     ],
     feedbacks:[
-      `Si seulement. Des études montrent que les LLM inventent des références scientifiques plausibles dans 30 à 60 % des cas selon le domaine. Les titres, auteurs et revues semblent réels. Des étudiants ont rendu des dizaines de fausses citations sans le savoir.`,
-      `La méfiance totale n'est pas optimale. L'IA est utile pour explorer, reformuler, comprendre. Certaines tâches requièrent une vérification absolue (références, chiffres, lois) ; d'autres moins (brainstorming, traduction).`,
-      `La bonne posture : traiter l'IA comme un assistant enthousiaste mais pas toujours fiable. Vous vérifiez ce qui compte, vous profitez de la rapidité. Google Scholar et PubMed permettent de vérifier en 30 secondes. Vérifier n'est pas méfiance : c'est méthode.`,
+      `Si seulement. Des études montrent que les LLM inventent des références scientifiques plausibles dans 30 à 60 % des cas selon le domaine. Des étudiants ont rendu des dizaines de fausses citations sans le savoir.`,
+      `La méfiance totale n'est pas optimale. L'IA est utile pour explorer, reformuler, comprendre. Certaines tâches requièrent une vérification absolue ; d'autres moins.`,
+      `La bonne posture : traiter l'IA comme un assistant enthousiaste mais pas toujours fiable. Google Scholar et PubMed permettent de vérifier en 30 secondes. Vérifier n'est pas méfiance : c'est méthode.`,
     ],
-    crystalOnCorrect:1,
-    door, journal,
+    crystalOnCorrect:1, journal:journal5,
+    onAnswered:()=>revealSection(en5),
   });
+  el.appendChild(ch5);
 
-  aH(el,sep());
-  buildHallucinationHunt(el, ()=>{
-    const secret=buildSecretRoom(el,'halu-secret',
-      `<p>Vous avez trouvé les 2 hallucinations. Maintenant voici la vraie question : <strong>pourquoi une IA affirme-t-elle avec autant d'assurance des choses fausses ?</strong><br><br>
-      Parce qu'elle ne distingue pas "plausible" de "vrai". Pour elle, "Deep Blue bat Kasparov 5-0" et "4-1" ont des probabilités proches ; les deux sont des phrases sur Deep Blue et Kasparov. La confiance avec laquelle elle s'exprime est indépendante de la véracité. C'est structurel, pas un bug à corriger.</p>`);
-    secret.classList.add('show');
-    addGold(1);
+  aH(en5,sep());
+  buildHallucinationHunt(en5, ()=>{
+    const secret=buildSecretRoom(en5,'halu-secret',
+      `<p>Vous avez trouvé les 2 hallucinations. La vraie question : <strong>pourquoi une IA affirme-t-elle avec autant d'assurance des choses fausses ?</strong><br><br>
+      Parce qu'elle ne distingue pas "plausible" de "vrai". La confiance avec laquelle elle s'exprime est indépendante de la véracité. C'est structurel, pas un bug à corriger.</p>`);
+    secret.classList.add('show'); addGold(1);
     secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
   });
 
-  aH(el,sep());
-  aH(el,badge('Époque V · 2024 — La Forêt de l\'Énergie'));
+  aH(en5,sep());
+  aH(en5,scTxt(`Mais comment une IA lit-elle vos mots, exactement ? Elle ne lit pas. Elle <em>découpe</em>. Chaque texte que vous lui envoyez est d'abord haché en fragments appelés <strong>tokens</strong>, convertis en suites de nombres, puis projetés dans un espace mathématique à des milliers de dimensions.`));
+  buildTokenVisualizer(en5);
+  aH(en5,scTxt(`Un token n'est pas un mot. Le mot "intelligence" peut devenir trois tokens : <em>"intel"</em>, <em>"lig"</em>, <em>"ence"</em>. GPT-4 jongle avec environ 100 000 tokens différents, et aucun d'entre eux n'est jamais <em>compris</em>. Ce sont des identifiants numériques. La machine ne lit pas. Elle calcule.`));
+
+  aH(en5,sep());
+  aH(en5,scTxt(`Et si vous pouvez <em>découper</em> ce que vous lui envoyez, vous pouvez aussi apprendre à <em>structurer</em> ce que vous lui demandez. C'est l'art du prompt : non pas une formule magique, mais une logique d'adresse précise.`));
+  buildPromptEnigma(en5, ()=>{
+    const secret=buildSecretRoom(en5,'prompt-secret',
+      `<p>Vous venez de construire la structure d'un prompt professionnel. Ce que vous avez découvert s'appelle le <strong>CIDE</strong> : <strong>C</strong>ontexte, <strong>I</strong>nstruction, <strong>D</strong>estinataire, <strong>E</strong>xemples. Les meilleurs ingénieurs de prompt ne font pas de magie : ils structurent. Un prompt bien construit, c'est la différence entre obtenir une réponse générique et obtenir exactement ce dont vous avez besoin.</p>`);
+    secret.classList.add('show'); addGold(1);
+    secret.insertAdjacentHTML('beforeend','<div class="gold-crystal">+1 ✦ Cristal d\'Or</div>');
+    revealSection(nav5);
+  });
+  const skip5=document.createElement('button'); skip5.className='pause-skip-btn'; skip5.style.cssText='margin-top:.8rem;display:block;margin-left:auto;margin-right:auto;opacity:.45;'; skip5.textContent='Passer l\'énigme';
+  skip5.onclick=()=>revealSection(nav5);
+  en5.appendChild(skip5);
+  el.appendChild(en5);
+
+  aH(nav5,sep());
+  navBtn(nav5,'Vers la Forêt de l\'Énergie',7);
+  el.appendChild(nav5);
+},
+
+// ── 7. LA FORÊT DE L'ÉNERGIE ──
+7:(el)=>{
+  aH(el,badge('Époque V · 2024 · La Forêt de l\'Énergie'));
   aH(el,scTitle('La Forêt de l\'Énergie'));
-  aH(el,`<img src="image7.png" alt="La Forêt de l'Énergie — datacenters et impact environnemental" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
+  aH(el,`<img src="image6.png" alt="La Forêt de l'Énergie · datacenters et impact environnemental" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(0,212,180,.12);display:block;"/>`);
+
+  const narr7=document.createElement('div'); narr7.style.display='none';
+  const ch7=document.createElement('div'); ch7.style.display='none';
+  const nav7=document.createElement('div'); nav7.style.display='none';
+
   buildPause(el,
     `Vous sentez la chaleur des serveurs. Derrière chaque clic, de l'énergie. Alors, utilisez-vous votre voiture pour aller chercher le pain à 200 mètres ? Qu'est-ce que serait l'équivalent avec l'IA ?`,
-    `Laisser le robinet couler pour remplir un verre d'eau — on ne le ferait pas. Pourtant, on génère parfois 50 variations d'un message avec une IA sans y penser. Est-ce que la valeur produite justifie la dépense ? Qui devrait décider : l'utilisateur, l'entreprise, l'État ?`,
-    `Une requête à un grand modèle IA consomme entre 3 et 10 fois plus d'énergie qu'une recherche Google. L'entraînement de GPT-3 représentait environ 502 tonnes de CO₂. Ce n'est ni "interdit" ni "gratuit". C'est une ressource avec un coût réel. Comme l'eau ou l'électricité, l'utiliser à bon escient est une responsabilité collective.`
+    ``,
+    `Laisser le robinet couler pour remplir un verre d'eau : on ne le ferait pas. Pourtant, on génère parfois 50 variations d'un message avec une IA sans y penser. Est-ce que la valeur produite justifie la dépense ? Qui devrait décider : l'utilisateur, l'entreprise, l'État ?<br><br>Une requête à un grand modèle IA consomme entre 3 et 10 fois plus d'énergie qu'une recherche Google. L'entraînement de GPT-3 représentait environ 502 tonnes de CO₂. Ce n'est ni interdit ni gratuit. C'est une ressource avec un coût réel. Comme l'eau ou l'électricité, l'utiliser à bon escient est une responsabilité collective.`,
+    120, ()=>revealSection(narr7)
   );
-  aH(el,scTxt(`Derrière chaque réponse d'une IA : des <strong>datacenters</strong>, des bâtiments entiers remplis de puces qui calculent en permanence. L'entraînement d'un grand modèle peut consommer l'électricité d'une petite ville pendant des semaines.`));
-  aH(el,scTxt(`Les chiffres sont affichés sur un panneau à l'entrée du datacenter. Une recherche Google consomme environ 0,3 Wh. Une requête à un grand modèle d'IA : entre 3 et 10 Wh — dix à trente fois plus. L'entraînement de GPT-3 a représenté environ 1 287 MWh, soit 502 tonnes de CO₂. Sans oublier l'eau : les serveurs chauffent, et il faut les refroidir. Ce n'est pas une raison d'arrêter. C'est une raison d'utiliser <em>à bon escient</em> — comme l'eau, comme l'électricité, comme n'importe quelle ressource dont le coût est réel mais invisible.`));
 
-  challenge(el,{
+  narr7.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">Derrière chaque réponse d'une IA : des <strong>datacenters</strong>, des bâtiments entiers remplis de puces qui calculent en permanence. L'entraînement d'un grand modèle peut consommer l'électricité d'une petite ville pendant des semaines.</p>
+    <p class="scene-text">Mais concrètement, qu'est-ce que ça représente ? Voici un comparatif pour le rendre visible.</p>
+  `));
+  buildEnergyViz(narr7);
+  const revBtn7=document.createElement('button'); revBtn7.className='pause-skip-btn'; revBtn7.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;'; revBtn7.textContent='Continuer →';
+  revBtn7.onclick=()=>{revBtn7.style.display='none';revealSection(ch7);};
+  narr7.appendChild(revBtn7);
+  el.appendChild(narr7);
+
+  challenge(ch7,{
     question:`Sur l'écran du datacenter, trois scénarios sont affichés. Lequel représente la valeur ajoutée la plus difficile à contester pour justifier l'empreinte énergétique ?`,
     options:[
       {text:`Générer 50 variantes d'un message d'anniversaire pour choisir la meilleure formulation.`,correct:false},
@@ -1338,91 +1682,295 @@ const nodes={
       `Cas intermédiaire très courant. Parfois résumer libère du temps pour quelque chose d'important. Parfois c'est de la paresse cognitive. La question à se poser : est-ce que je perds quelque chose d'essentiel en ne lisant pas moi-même ?`,
     ],
     crystalOnCorrect:1,
+    onAnswered:()=>revealSection(nav7),
   });
+  el.appendChild(ch7);
 
-  aH(el,sep());
-  navBtn(el,'Vers le Carrefour des Possibles',6,true);
+  aH(nav7,sep());
+  navBtn(nav7,'Vers le Carrefour des Possibles',6,true);
+  el.appendChild(nav7);
 },
 
 // ── 6. LE DONJON + LA TOUR ──
 6:(el)=>{
-  aH(el,badge('Époque VI · 2026'));
+  aH(el,badge('Époque VI · 2026 et après'));
   aH(el,scTitle('Le Donjon du Paresseux & La Tour du Sage'));
-  aH(el,`<img src="image8.png" alt="Le Donjon du Paresseux et la Tour du Sage — le futur" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(245,166,35,.12);display:block;"/>`);
+  aH(el,`<img src="image8.png" alt="Le Donjon du Paresseux et la Tour du Sage · le futur" style="width:100%;height:200px;object-fit:cover;border-radius:4px;margin-bottom:1.5rem;border:1px solid rgba(245,166,35,.12);display:block;"/>`);
 
-  const doorSvg=`<svg viewBox="0 0 820 200" style="width:100%;height:100%;">
-    <defs><radialGradient id="gf6" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="#0a1128"/><stop offset="100%" stop-color="#050810"/></radialGradient></defs>
-    <rect width="820" height="200" fill="url(#gf6)"/>
-    <rect x="55" y="38" width="155" height="118" rx="3" fill="rgba(255,107,138,.04)" stroke="rgba(255,107,138,.18)" stroke-width="1"/>
-    <text x="132" y="92" text-anchor="middle" font-family="Share Tech Mono" font-size="8" fill="#ff6b8a">LE DONJON</text>
-    <text x="132" y="108" text-anchor="middle" font-family="Crimson Pro" font-size="9" fill="rgba(255,107,138,.5)" font-style="italic">du Paresseux</text>
-    <rect x="608" y="38" width="155" height="118" rx="3" fill="rgba(0,212,180,.04)" stroke="rgba(0,212,180,.22)" stroke-width="1"/>
-    <text x="685" y="92" text-anchor="middle" font-family="Share Tech Mono" font-size="8" fill="#00d4b4">LA TOUR</text>
-    <text x="685" y="108" text-anchor="middle" font-family="Crimson Pro" font-size="9" fill="rgba(0,212,180,.5)" font-style="italic">du Sage</text>
-    <path d="M215,97 L390,97 M430,97 L605,97" stroke="rgba(200,212,232,.12)" stroke-width=".8" stroke-dasharray="4,3"/>
-    <circle cx="410" cy="97" r="20" fill="rgba(245,166,35,.08)" stroke="rgba(245,166,35,.28)" stroke-width="1"/>
-    <text x="410" y="102" text-anchor="middle" font-family="Share Tech Mono" font-size="9" fill="#f5a623">Toi</text>
-  </svg>`;
+  const narr6=document.createElement('div'); narr6.style.display='none';
+  const ch6=document.createElement('div'); ch6.style.display='none';
+  const end6=document.createElement('div'); end6.style.display='none';
 
   buildPause(el,
     `Le brouillard se lève lentement. Deux silhouettes s'éloignent dans des directions opposées. Avant de choisir votre chemin : connaissez-vous quelqu'un qui utilise l'IA tous les jours ? Pensez-vous que cela l'aide à progresser, ou que cela l'empêche d'apprendre ?`,
-    `Un musicien qui joue avec un métronome devient plus précis. Un musicien qui laisse le métronome jouer <em>à sa place</em> ne progresse plus. La différence, c'est qui dirige. Avec l'IA, est-ce que vous pensez que c'est pareil ? Dans quels cas l'outil aide, et dans quels cas il remplace ?`,
-    `L'IA est un miroir, pas une fenêtre. Elle amplifie ce que vous lui apportez. Si vous pensez flou, elle écrira flou avec assurance. Si vous pensez précis, elle vous ouvrira des portes. La question n'est pas "utiliser ou ne pas utiliser" : c'est "est-ce que vous dirigez, ou est-ce que vous subissez ?"`,
+    ``,
+    `Un musicien qui joue avec un métronome devient plus précis. Un musicien qui laisse le métronome jouer à sa place ne progresse plus. La différence, c'est qui dirige. Avec l'IA, est-ce que vous pensez que c'est pareil ? Dans quels cas l'outil aide, et dans quels cas il remplace ?<br><br>L'IA est un miroir, pas une fenêtre. Elle amplifie ce que vous lui apportez. Si vous pensez flou, elle écrira flou avec assurance. Si vous pensez précis, elle vous ouvrira des portes. La question n'est pas "utiliser ou ne pas utiliser" : c'est "est-ce que vous dirigez, ou est-ce que vous subissez ?"`,
+    120, ()=>revealSection(narr6)
   );
 
-  const door=buildSealedDoor(el, doorSvg, `Résolvez l'épreuve pour choisir votre chemin`);
-  const journal=buildJournal(el,'futur','Ama Owusu, doctorante en IA · Université de Lagos','2026, journal de recherche',
+  narr6.appendChild(document.createRange().createContextualFragment(`
+    <p class="scene-text">Le chronomètre s'arrête dans un lieu indéfini. Deux chemins s'éloignent dans la brume devant vous.</p>
+    <p class="scene-text">À gauche : <strong>Le Donjon du Paresseux</strong>. Un être voûté demande à l'IA d'écrire ses mails, ses dissertations, ses lettres d'amour. Il ne réfléchit plus vraiment. Un an plus tard, ses compétences s'atrophient comme un muscle inutilisé. L'outil l'a remplacé, sans qu'il s'en aperçoive.</p>
+    <p class="scene-text">À droite : <strong>La Tour du Sage</strong>. Quelqu'un utilise l'IA pour explorer, corriger ses angles morts, prototyper plus vite. Mais il garde son jugement, vérifie ce qu'il ne comprend pas, reformule dans ses propres mots. L'outil accélère sa pensée ; il ne la remplace pas.</p>
+  `));
+  const revBtn6=document.createElement('button'); revBtn6.className='pause-skip-btn'; revBtn6.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;'; revBtn6.textContent='Continuer →';
+  revBtn6.onclick=()=>{revBtn6.style.display='none';revealSection(ch6);};
+  narr6.appendChild(revBtn6);
+  el.appendChild(narr6);
+
+  const journal6=buildJournal(ch6,'futur','Ama Owusu, doctorante en IA · Université de Lagos','2026 et après, journal de recherche',
     `Mes étudiants utilisent l'IA pour tout. Certains n'écrivent plus une phrase sans elle. Je leur dis : l'IA est un miroir, pas une fenêtre. Elle te renverra ce que tu lui donnes, amplifié. Si tu penses flou, elle écrira flou avec assurance. Si vous pensez précis, elle te donnera des outils que tu n'aurais pas trouvés seul. La question n'est pas "utiliser ou ne pas utiliser". C'est : est-ce que tu diriges, ou est-ce que tu subis ?`);
-
-  aH(el,scTxt(`Le chronomètre s'arrête dans un lieu indéfini. Deux chemins s'éloignent dans la brume devant vous.`));
-  aH(el,scTxt(`À gauche : <strong>Le Donjon du Paresseux</strong>. Un être voûté demande à l'IA d'écrire ses mails, ses dissertations, ses lettres d'amour. Il ne réfléchit plus vraiment. Un an plus tard, ses compétences s'atrophient comme un muscle inutilisé. L'outil l'a remplacé, sans qu'il s'en aperçoive.`));
-  aH(el,scTxt(`À droite : <strong>La Tour du Sage</strong>. Quelqu'un utilise l'IA pour explorer, corriger ses angles morts, prototyper plus vite. Mais il garde son jugement, vérifie ce qu'il ne comprend pas, reformule dans ses propres mots. L'outil accélère sa pensée ; il ne la remplace pas.`));
-
-  challenge(el,{
-    question:`À l'entrée du carrefour, une scène est gravée dans le marbre :<br><em>"Un élève de lycée demande à une IA de rédiger entièrement son commentaire de texte. Il le lit, le trouve bien, le rend."</em><br>Quelle est la perte la plus profonde ?`,
+  challenge(ch6,{
+    question:`<em>"Un élève de lycée demande à une IA de rédiger entièrement son commentaire de texte. Il le lit, le trouve bien, le rend."</em><br>Quelle est la perte la plus profonde ?`,
     options:[
       {text:`Aucune : l'objectif est atteint et savoir utiliser les outils est une compétence.`,correct:false},
       {text:`La perte est administrative : il risque d'être sanctionné s'il est découvert.`,correct:false},
       {text:`La perte est cognitive : l'écriture est un outil de pensée. Déléguer l'écriture, c'est déléguer la construction de sa propre pensée.`,correct:true},
     ],
     feedbacks:[
-      `Savoir utiliser les outils est une vraie compétence. Mais il y a une différence entre utiliser un outil pour faire ce qu'on ne peut pas seul, et l'utiliser pour éviter ce qu'on devrait apprendre. Un chirurgien qui délègue ses opérations n'apprend pas à opérer.`,
-      `Le risque de détection est la raison la moins importante. Même si personne ne l'apprend jamais, la perte est réelle : c'est l'élève qui n'apprend pas, pas l'examinateur qui est trompé.`,
-      `Exactement. "Écrire, c'est penser." Quand on cherche ses mots, on structure sa pensée. Quand on argumente par écrit, on découvre ce qu'on croit vraiment. L'IA peut aider à relire, améliorer, explorer ; pas à penser à votre place.`,
+      `Savoir utiliser les outils est une vraie compétence. Mais il y a une différence entre utiliser un outil pour faire ce qu'on ne peut pas seul, et l'utiliser pour éviter ce qu'on devrait apprendre.`,
+      `Le risque de détection est la raison la moins importante. Même si personne ne l'apprend jamais, la perte est réelle : c'est l'élève qui n'apprend pas, pas l'examinateur qui est trompé. Cela dit, le cadre de l'Éducation nationale est clair : utiliser une IA générative sans autorisation explicite du professeur constitue une <strong>fraude</strong>, au même titre que la triche. <a href="https://www.education.gouv.fr/sites/default/files/2025-06/l-ia-en-ducation---cadre-d-usage-440685.pdf" target="_blank" style="color:var(--teal);">Cadre d'usage de l'IA — Éducation nationale (2025)</a>`,
+      `Exactement. "Écrire, c'est penser." Quand on cherche ses mots, on structure sa pensée. L'IA peut aider à relire, améliorer, explorer ; pas à penser à votre place.`,
     ],
-    crystalOnCorrect:1,
-    door, journal,
+    crystalOnCorrect:1, journal:journal6,
+    onAnswered:()=>revealSection(end6),
+  });
+  el.appendChild(ch6);
+
+  end6.innerHTML='';
+  const toQcm=document.createElement('button'); toQcm.className='nav-btn amber'; toQcm.style.cssText='margin-top:1.5rem;display:block;margin-left:auto;margin-right:auto;';
+  toQcm.innerHTML='Vers le Grand Récapitulatif →';
+  toQcm.onclick=()=>render(8);
+  end6.appendChild(toQcm);
+  el.appendChild(end6);
+},
+
+// ── 8. QCM RÉCAPITULATIF ──
+8:(el)=>{
+  aH(el,badge('Récapitulatif · Ce que vous avez appris'));
+  aH(el,scTitle('Le Grand Récapitulatif'));
+  aH(el,scTxt(`Vous avez traversé 7 époques. Avant de recevoir votre bilan, testez ce que vous avez retenu. 10 questions, une seule bonne réponse à chaque fois.`));
+
+  // Helper: shuffle options while tracking correct index
+  function shuffleOpts(opts, correctIdx){
+    const paired = opts.map((o,i)=>({text:o, isCorrect:i===correctIdx}));
+    for(let i=paired.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[paired[i],paired[j]]=[paired[j],paired[i]];}
+    return {opts:paired.map(p=>p.text), correct:paired.findIndex(p=>p.isCorrect)};
+  }
+
+  const rawQcm=[
+    {
+      q:`Qu'est-ce que le "test de Turing" mesure vraiment ?`,
+      opts:[`La conscience d'une machine.`,`La capacité d'une machine à imiter la production textuelle humaine.`,`L'intelligence générale d'une IA.`],
+      correct:1,
+      expl:`Turing lui-même appelait ça un "jeu d'imitation", pas un test de conscience. Imiter n'est pas comprendre.`
+    },
+    {
+      q:`Quand une IA vous répond, est-ce qu'elle vous "parle" vraiment ?`,
+      opts:[`Oui, elle comprend votre message et formule une réponse réfléchie.`,`Non : elle prédit des suites de tokens vraisemblables sans comprendre le sens de ce qu'elle produit.`,`Cela dépend du modèle : certains comprennent, d'autres non.`],
+      correct:1,
+      expl:`Une IA générative ne comprend pas, ne ressent pas, n'a pas d'intention. Elle calcule des probabilités sur des fragments de texte. Ce que vous percevez comme une "réponse" est le résultat d'une prédiction statistique, pas d'une pensée.`
+    },
+    {
+      q:`Pourquoi l'algorithme de recrutement d'Amazon discriminait-il les femmes ?`,
+      opts:[`Il avait été programmé pour favoriser les hommes.`,`Il ne fonctionnait pas correctement à cause d'un bug.`,`Il avait appris depuis des données historiques où les ingénieurs embauchés étaient majoritairement des hommes.`],
+      correct:2,
+      expl:`L'algorithme n'avait pas de mauvaise intention : il reproduisait ce qu'il avait observé dans les données passées. Les données n'étaient pas neutres.`
+    },
+    {
+      q:`Qu'est-ce qui différenciait AlphaGo de Deep Blue ?`,
+      opts:[`AlphaGo avait appris par renforcement en jouant contre lui-même, sans règles explicites programmées.`,`AlphaGo était plus puissant en calcul.`,`Deep Blue avait appris par renforcement, AlphaGo appliquait des règles.`],
+      correct:0,
+      expl:`Deep Blue appliquait des règles codées par des ingénieurs. AlphaGo a développé sa propre stratégie en jouant des millions de parties : une rupture fondamentale.`
+    },
+    {
+      q:`Qu'est-ce qu'une "hallucination" d'une IA ?`,
+      opts:[`Une réponse que l'IA refuse de donner.`,`Un fait inventé présenté avec la même assurance qu'un fait vrai.`,`Une erreur due à un bug dans le code.`],
+      correct:1,
+      expl:`L'IA ne distingue pas "plausible" de "vrai". Elle prédit ce qui est statistiquement vraisemblable, et peut donc inventer des faits, des dates, des sources avec une confiance absolue.`
+    },
+    {
+      q:`Qu'est-ce qu'un token ?`,
+      opts:[`Un score attribué à une réponse d'IA.`,`Un mot entier tel qu'on le lit.`,`Un fragment de texte converti en nombre, unité de base que l'IA traite.`],
+      correct:2,
+      expl:`Un token n'est pas un mot : "intelligence" peut devenir trois tokens. L'IA ne lit pas ; elle calcule sur ces fragments numériques.`
+    },
+    {
+      q:`Pourquoi une requête à une IA consomme-t-elle plus d'énergie qu'une recherche Google ?`,
+      opts:[`Parce que les calculs nécessaires à la prédiction de chaque token mobilisent bien plus de puissance de calcul.`,`Parce que les datacenters d'IA sont moins efficaces.`,`Parce que l'IA est moins bien optimisée techniquement.`],
+      correct:0,
+      expl:`Une requête à un grand modèle consomme entre 3 et 10 Wh contre ~0,3 Wh pour Google. Ce n'est pas un défaut : c'est la nature du calcul. Une raison d'utiliser à bon escient.`
+    },
+    {
+      q:`Quelle est la différence entre le "Donjon du Paresseux" et la "Tour du Sage" ?`,
+      opts:[`L'un a accès à de meilleures IA que l'autre.`,`L'un laisse l'IA penser à sa place, l'autre utilise l'IA pour accélérer sa propre pensée.`,`L'un utilise l'IA, l'autre non.`],
+      correct:1,
+      expl:`Ce n'est pas une question d'utiliser ou non l'IA, mais de qui dirige. L'IA est un miroir : elle amplifie ce qu'on lui apporte.`
+    },
+    {
+      q:`Face à une information donnée par une IA, quelle est l'attitude la plus éclairée ?`,
+      opts:[`La copier directement : une IA entraînée sur des milliards de données est forcément fiable.`,`La refuser systématiquement : on ne peut pas faire confiance à une IA.`,`L'utiliser comme point de départ et vérifier les faits importants dans des sources fiables.`],
+      correct:2,
+      expl:`L'esprit critique ne signifie pas rejeter l'IA, mais ne pas lui faire confiance aveuglément. Vérifier les chiffres, les dates et les sources qu'une IA fournit, c'est une compétence, pas de la méfiance.`
+    },
+    {
+      q:`Selon le cadre de l'Éducation nationale, que risque un élève qui utilise une IA sans autorisation du professeur ?`,
+      opts:[`Une simple remarque dans son carnet de correspondance.`,`D'être considéré en situation de fraude, au même titre que la triche.`,`Rien, tant que le travail rendu est de qualité.`],
+      correct:1,
+      expl:`Le cadre d'usage de l'IA publié par l'Éducation nationale en 2025 est explicite : l'usage non autorisé d'IA générative constitue une fraude.`
+    },
+  ];
+
+  // Shuffle options for each question
+  const qcmData=rawQcm.map(item=>{
+    const {opts,correct}=shuffleOpts(item.opts,item.correct);
+    return {...item,opts,correct};
   });
 
-  aH(el,sep());
+  let qcmScore=0;
+  let qcmDone=0;
+  const navZone8=document.createElement('div'); navZone8.style.display='none';
 
-  // Final screen
+  qcmData.forEach((item,qi)=>{
+    const block=document.createElement('div');
+    block.style.cssText='background:rgba(8,14,32,.88);border:1px solid rgba(136,238,255,.15);border-radius:5px;padding:1.2rem 1.4rem;margin:1.2rem 0;';
+    block.innerHTML=`<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--crystal);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.6rem;">Question ${qi+1} / ${qcmData.length}</div>
+      <p style="font-size:1rem;color:var(--silver);font-weight:600;margin-bottom:.9rem;line-height:1.5;">${item.q}</p>
+      <div class="options" id="qcm-opts-${qi}"></div>
+      <div class="feedback" id="qcm-fb-${qi}"></div>`;
+    el.appendChild(block);
+
+    const ow=block.querySelector(`#qcm-opts-${qi}`);
+    const fb=block.querySelector(`#qcm-fb-${qi}`);
+    let done=false;
+    item.opts.forEach((opt,oi)=>{
+      const b=document.createElement('button'); b.className='option-btn'; b.textContent=opt;
+      b.onclick=()=>{
+        if(done)return; done=true;
+        const correct=oi===item.correct;
+        ow.querySelectorAll('.option-btn').forEach((bb,j)=>bb.classList.add(j===oi?(correct?'correct':'wrong'):'disabled'));
+        fb.className='feedback show '+(correct?'good':'bad');
+        fb.innerHTML=item.expl;
+        if(correct){ qcmScore++; addCrystals(1); fb.innerHTML+=`<br><span class="crystal-gain">+1 💎</span>`; }
+        qcmDone++;
+        if(qcmDone===qcmData.length) setTimeout(()=>revealSection(navZone8),600);
+      };
+      ow.appendChild(b);
+    });
+  });
+
+  aH(navZone8,sep());
+  aH(navZone8,`<p class="scene-text" id="qcm-summary"></p>`);
+  const toEnd=document.createElement('button'); toEnd.className='nav-btn amber'; toEnd.style.cssText='margin-top:1rem;display:block;margin-left:auto;margin-right:auto;';
+  toEnd.innerHTML='Voir mon bilan final →';
+  toEnd.onclick=()=>render(9);
+  navZone8.appendChild(toEnd);
+  el.appendChild(navZone8);
+
+  // Fill summary when revealed
+  const obs8=new MutationObserver(()=>{
+    if(navZone8.style.opacity==='1'||navZone8.style.display!=='none'){
+      const s=document.getElementById('qcm-summary');
+      if(s) s.innerHTML=`Récapitulatif terminé : <strong style="color:var(--amber-glow)">${qcmScore} / ${qcmData.length}</strong> bonnes réponses. ${qcmScore>=7?'Excellente mémoire du voyage !':qcmScore>=5?'Bonne restitution ; quelques concepts à revoir.':'Le voyage était dense, relisez les passages qui vous ont échappé.'}`;
+      obs8.disconnect();
+    }
+  });
+  obs8.observe(navZone8,{attributes:true,attributeFilter:['style']});
+},
+
+// ── 9. ÉCRAN DE FIN ──
+9:(el)=>{
+  aH(el,badge('Bilan Final'));
+  aH(el,scTitle('Le Voyage s\'achève… pour l\'instant'));
+
   const endWrap=document.createElement('div'); endWrap.className='end-wrap';
-  endWrap.innerHTML=`<div class="end-title">Le Voyage s'achève — pour l'instant</div>
+  endWrap.innerHTML=`
     <div class="end-scores">
       <span class="score-pill crystal">💎 <span id="fc"></span> Cristaux</span>
       <span class="score-pill gold">✦ <span id="fg"></span> Cristaux d'Or</span>
       <span class="score-pill rank" id="fr"></span>
-    </div>
-    <p class="end-text" id="fm"></p>`;
+    </div>`;
   el.appendChild(endWrap);
 
   document.getElementById('fc').textContent=crystals;
   document.getElementById('fg').textContent=goldCrystals;
   const total=crystals+goldCrystals*2;
-  const rank=total>=16?['Architecte de Lucidité ✦',`Score : ${crystals} 💎 + ${goldCrystals} ✦. Vous avez traversé toutes les épreuves et découvert plusieurs passages secrets. L'IA n'a plus de secrets fondamentaux pour vous. Le vrai voyage commence maintenant, dans vos usages quotidiens.`]
-    :total>=10?['Voyageur Éveillé ◈',`Score : ${crystals} 💎 + ${goldCrystals} ✦. Bonne navigation. Quelques salles secrètes restent à découvrir ; revenez avec d'autres regards. Les réponses "neutres" cachent parfois les passages les plus intéressants.`]
-    :['Apprenti Chrononaute ◇',`Score : ${crystals} 💎 + ${goldCrystals} ✦. Le voyage était dense. Recommencez : certaines réponses que vous n'avez pas choisies ouvrent des portes que vous n'avez pas encore vues.`];
-  document.getElementById('fr').textContent=rank[0];
-  document.getElementById('fm').textContent=rank[1];
+  const rank=total>=16?'Architecte de Lucidité ✦':total>=10?'Voyageur Éveillé ◈':'Apprenti Chrononaute ◇';
+  document.getElementById('fr').textContent=rank;
 
-  const restart=document.createElement('button'); restart.className='nav-btn amber'; restart.style.marginTop='1.5rem';
+  // Typewriter message
+  const msg=total>=16
+    ? `Bravo. Vous avez traversé toutes les épreuves et découvert plusieurs passages secrets. L'IA n'a plus de secrets fondamentaux pour vous. Le vrai voyage commence maintenant, dans vos usages quotidiens.`
+    : total>=10
+    ? `Bonne navigation. Vous avez retenu l'essentiel. Quelques salles secrètes restent à découvrir ; revenez avec d'autres regards. Les réponses "neutres" cachent parfois les passages les plus intéressants.`
+    : `Le voyage était dense. C'est normal. Les grandes questions sur l'IA méritent plusieurs lectures. Recommencez : certaines réponses que vous n'avez pas choisies ouvrent des portes que vous n'avez pas encore vues.`;
+
+  const typeWrap=document.createElement('div');
+  typeWrap.style.cssText='margin:1.5rem 0 .5rem;min-height:4rem;font-size:1.05rem;color:var(--silver);line-height:1.85;font-family:var(--font-body);';
+  const cursor=document.createElement('span');
+  cursor.style.cssText='display:inline-block;width:2px;height:1.1em;background:var(--teal);vertical-align:text-bottom;animation:blink .7s step-end infinite;margin-left:2px;';
+  typeWrap.appendChild(cursor);
+  endWrap.insertAdjacentElement('afterend',typeWrap);
+
+  // Add blink keyframe if not present
+  if(!document.getElementById('blink-style')){
+    const st=document.createElement('style');st.id='blink-style';
+    st.textContent='@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}';
+    document.head.appendChild(st);
+  }
+
+  let i=0;
+  const typeInterval=setInterval(()=>{
+    if(i<msg.length){
+      typeWrap.insertBefore(document.createTextNode(msg[i]),cursor);
+      i++;
+    } else {
+      clearInterval(typeInterval);
+      cursor.style.animation='blink .7s step-end infinite';
+      setTimeout(()=>cursor.style.display='none',2000);
+    }
+  },28);
+
+  // Advice cards
+  const adviceSep=document.createElement('hr'); adviceSep.className='sep'; adviceSep.style.marginTop='2rem';
+  el.appendChild(adviceSep);
+
+  const adviceHeader=document.createElement('div');
+  adviceHeader.style.cssText='text-align:center;margin-bottom:1.4rem;';
+  adviceHeader.innerHTML=`<div style="font-family:var(--font-mono);font-size:.58rem;color:var(--teal);letter-spacing:.2em;text-transform:uppercase;margin-bottom:.4rem;">Pour continuer le voyage</div>
+    <h2 style="font-family:var(--font-title);font-size:clamp(1rem,3.5vw,1.4rem);color:var(--amber-glow);margin:0;">6 réflexes pour utiliser l'IA avec lucidité</h2>`;
+  el.appendChild(adviceHeader);
+
+  const advices=[
+    {icon:'🔍', title:'Vérifiez toujours', text:'Une date, un chiffre, un nom propre donné par une IA : prenez 30 secondes pour vérifier. Ce n\'est pas de la méfiance, c\'est de la méthode.', color:'teal', rgb:'0,212,180'},
+    {icon:'✏️', title:'Écrivez avant de demander', text:'Pour un devoir, une lettre, une décision importante : posez d\'abord vos propres idées. Utilisez l\'IA pour améliorer, pas pour remplacer votre pensée.', color:'amber', rgb:'245,166,35'},
+    {icon:'🎨', title:'Générez avec intention', text:'Créer une image IA, c\'est bien. Comprendre ce qu\'elle représente, ce qu\'elle omet, ce qu\'elle reproduit comme stéréotypes : c\'est mieux encore.', color:'rose', rgb:'255,107,138'},
+    {icon:'💬', title:'Parlez-en en famille', text:'L\'IA que vos enfants utilisent n\'est pas la même que celle d\'il y a deux ans. Demandez-leur ce qu\'ils font avec. Ce dialogue vaut tous les cours.', color:'violet', rgb:'168,85,247'},
+    {icon:'⚡', title:'Choisissez l\'outil juste', text:'Une recherche Google suffit souvent. L\'IA de texte pour explorer une idée. La génération d\'image pour créer. Chaque outil a son coût et sa valeur ; utilisez le bon.', color:'crystal', rgb:'136,238,255'},
+    {icon:'🧭', title:'Restez aux commandes', text:'L\'IA amplifie ce que vous lui apportez. Si vous lui donnez du flou, elle produit du flou confiant. Si vous pensez clair, elle vous ouvre des portes. C\'est vous qui dirigez.', color:'green', rgb:'74,222,128'},
+  ];
+
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem;margin-bottom:2rem;';
+  advices.forEach((a,i)=>{
+    const card=document.createElement('div');
+    card.style.cssText=`background:rgba(8,14,32,.8);border:1px solid rgba(${a.rgb},.2);border-radius:6px;padding:1.2rem 1.1rem;cursor:default;transition:all .3s;transform:translateY(0);opacity:0;animation:fadeScene .5s ease ${i*.08}s forwards;`;
+    card.innerHTML=`
+      <div style="width:42px;height:42px;border-radius:50%;background:rgba(${a.rgb},.12);border:1px solid rgba(${a.rgb},.3);display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin-bottom:.8rem;">${a.icon}</div>
+      <div style="font-family:var(--font-mono);font-size:.68rem;color:var(--${a.color});letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;font-weight:700;">${a.title}</div>
+      <p style="font-size:.88rem;color:#b0bdd0;line-height:1.72;margin:0;">${a.text}</p>`;
+    card.onmouseover=()=>{card.style.transform='translateY(-3px)';card.style.borderColor=`rgba(${a.rgb},.5)`;card.style.background=`rgba(${a.rgb},.06)`;};
+    card.onmouseout=()=>{card.style.transform='translateY(0)';card.style.borderColor=`rgba(${a.rgb},.2)`;card.style.background='rgba(8,14,32,.8)';};
+    grid.appendChild(card);
+  });
+  el.appendChild(grid);
+
+  const restart=document.createElement('button'); restart.className='nav-btn amber'; restart.style.cssText='margin-top:.5rem;display:block;margin-left:auto;margin-right:auto;';
   restart.innerHTML='↺ Recommencer l\'aventure';
   restart.onclick=()=>{crystals=0;goldCrystals=0;document.getElementById('cc').textContent='0';document.getElementById('gc').textContent='0';render(0);};
   el.appendChild(restart);
 },
 };
-
 render(0);
 </script>
 

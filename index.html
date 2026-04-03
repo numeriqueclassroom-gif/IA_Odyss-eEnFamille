@@ -908,7 +908,7 @@ function buildProbExplorer(el){
   };
   const w=document.createElement('div');w.className='prob-explorer';
   w.innerHTML=`<div class="prob-label">🎲 L'IA Parie · Elle ne Sait Pas</div>
-    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.8rem;">Pendant son entraînement, l'IA a analysé des milliards de phrases. Elle a mémorisé <em>avec quelle fréquence</em> chaque mot suit chaque autre. Ces fréquences deviennent des probabilités. Choisissez le mot que vous mettriez ici ; vous verrez ensuite ensuite ce que l'IA aurait prédit.</p>
+    <p style="font-size:.88rem;color:var(--dim);margin-bottom:.8rem;">Pendant son entraînement, l'IA a analysé des milliards de phrases. Elle a mémorisé <em>avec quelle fréquence</em> chaque mot suit chaque autre. Ces fréquences deviennent des probabilités. Choisissez le mot que vous mettriez ici ; vous verrez ensuite ce que l'IA aurait prédit.</p>
     <div class="prob-sentence">${s.before} <span class="blank">___</span></div>
     <p class="prob-word-btns" style="font-family:var(--font-mono);font-size:.72rem;color:var(--dim);margin-bottom:.5rem;margin-top:.8rem;">Quel mot choisissez-vous ?</p>
     <div class="prob-word-btns" id="pw"></div>
@@ -1053,7 +1053,7 @@ function buildEnergyViz(el){
     {
       id:'google',
       q:`À votre avis, chercher quelque chose sur Google, c'est combien d'énergie ?`,
-      opts:[`Moins d'une minute d'ampoule LED`,`1 heure d'ampoule LED`,`Faire tourner un lave-linge`],
+      opts:[`Environ 2 minutes d'ampoule LED`,`1 heure d'ampoule LED`,`Faire tourner un lave-linge`],
       correct:0,
       icon:'🔍',
       label:'Recherche Google',
@@ -1072,7 +1072,7 @@ function buildEnergyViz(el){
       icon:'💬',
       label:'Requête IA · texte',
       sub:'3 à 10 Wh',
-      equiv:'≈ 5 à 16 heures d\'ampoule LED',
+      equiv:'≈ 10 à 30 fois plus qu\'une recherche Google',
       pct:20,
       color:'var(--amber)',
       colorRgb:'245,166,35',
@@ -1086,7 +1086,7 @@ function buildEnergyViz(el){
       icon:'🎨',
       label:'Génération d\'image IA',
       sub:'50 à 200 Wh',
-      equiv:'≈ 1 à 3 km en voiture électrique',
+      equiv:'≈ quelques centaines de mètres en voiture électrique',
       pct:55,
       color:'var(--rose)',
       colorRgb:'255,107,138',
@@ -2134,7 +2134,7 @@ const nodes={
       q:`Pourquoi une requête à une IA consomme-t-elle plus d'énergie qu'une recherche Google ?`,
       opts:[`Parce que les calculs nécessaires à la prédiction de chaque token mobilisent bien plus de puissance de calcul.`,`Parce que les datacenters d'IA sont moins efficaces.`,`Parce que l'IA est moins bien optimisée techniquement.`],
       correct:0,
-      expl:`Une requête à un grand modèle consomme entre 3 et 10 Wh contre ~0,3 Wh pour Google. Ce n'est pas un défaut : c'est la nature du calcul. Une raison d'utiliser à bon escient.`
+      expl:`Une requête à un grand modèle consomme entre 10 et 30 fois plus d'énergie qu'une recherche Google. Ce n'est pas un défaut : c'est la nature du calcul. Une raison d'utiliser à bon escient.`
     },
     {
       q:`Quelle est la différence entre le "Donjon du Paresseux" et la "Tour du Sage" ?`,
